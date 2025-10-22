@@ -54,3 +54,17 @@ class User(UserBase):
 
     class Config:
         from_attributes = True
+
+        
+class ForgotPasswordRequest(BaseModel):
+    email: EmailStr
+
+class ResetPasswordRequest(BaseModel):
+    token: str
+    new_password: str = Field(..., min_length=8)
+
+    # Reutiliza a validação de força da senha
+    @field_validator('new_password')
+    @classmethod
+    def validate_password_strength(cls, v: str) -> str:
+        return password_strength_validator(v)

@@ -19,5 +19,7 @@ class User(Base):
     verification_token_hash: Mapped[Optional[str]] = mapped_column(String(255), index=True) # Hash do token
     verification_token_expires: Mapped[Optional[datetime]] = mapped_column(DateTime)
     # --- Fim Novos Campos ---
+    reset_password_token_hash: Mapped[Optional[str]] = mapped_column(String(255), index=True)
+    reset_password_token_expires: Mapped[Optional[datetime]] = mapped_column(DateTime)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=func.now(), onupdate=func.now())

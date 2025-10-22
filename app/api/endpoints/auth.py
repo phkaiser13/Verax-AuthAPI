@@ -1,4 +1,4 @@
-from asyncio.log import logger
+from loguru import logger
 from datetime import timedelta
 from typing import Any
 from app.crud import crud_refresh_token # Importar CRUD do refresh token
@@ -13,7 +13,9 @@ from app.core.config import settings
 from app.schemas.token import Token, RefreshTokenRequest # Importar RefreshTokenRequest
 from app.schemas.user import User as UserSchema
 from app.models.user import User as UserModel
-from fastapi import Path # Adicionar Path
+from app.schemas.user import ForgotPasswordRequest, ResetPasswordRequest
+from app.services.email_service import send_password_reset_email
+from fastapi import Path, BackgroundTasks # Adicionar Path E BackgroundTasks
 # --- IMPORT FROM DEPENDENCIES ---
 from app.api.dependencies import get_current_active_user, oauth2_scheme
 # --- END IMPORT CORRECTION ---
@@ -167,3 +169,93 @@ async def read_users_me(
     Retorna os dados do usuário logado (validando o token).
     """
     return current_user
+
+@router.post("/forgot-password", status_code=status.HTTP_202_ACCEPTED)
+async def forgot_password(
+    *,
+    db: AsyncSession = Depends(get_db),
+    request_body: ForgotPasswordRequest,
+    background_tasks: BackgroundTasks
+):
+    """
+    Inicia o fluxo de redefinição de senha.
+    Envia um email para o usuário (se ele existir e estiver ativo).
+    """
+    user = await crud_user.get_by_email(db, email=request_body.email)
+    
+    # IMPORTANTE: Por segurança, NÃO retorne 404 se o usuário não existir.
+    # Sempre retorne 202 para evitar que atacantes descubram emails cadastrados.
+    if user and user.is_active:
+        # Usuário existe e está ativo, gerar token e enviar email
+        try:
+            db_user, reset_token = await crud_user.generate_password_reset_token(db, user=user)
+            
+            # Adiciona o envio do email na fila em background
+            background_tasks.add_task(
+                send_password_reset_email,
+                email_to=db_user.email,
+                reset_token=reset_token
+            )
+            logger.info(f"Solicitação de reset de senha para: {user.email}")
+            
+        except Exception as e:
+            # Se falhar ao gerar token ou enviar email, loga o erro mas não vaza a informação
+            logger.error(f"Erro no fluxo /forgot-password para {request_body.email}: {e}")
+            # Ainda retorna 202
+            
+    else:
+        # Usuário não encontrado ou inativo, loga e retorna 202
+        logger.warning(f"Tentativa de /forgot-password para email não existente ou inativo: {request_body.email}")
+
+    return {"msg": "Se um usuário com esse email existir e estiver ativo, um link de redefinição será enviado."}
+
+
+@router.post("/reset-password", response_model=UserSchema)
+async def reset_password(
+    *,
+    db: AsyncSession = Depends(get_db),
+    request_body: ResetPasswordRequest
+):
+    """
+    Recebe o token de reset e a nova senha, e atualiza o usuário.
+    """
+    token = request_body.token
+    new_password = request_body.new_password
+    
+    # 1. Decodifica o token JWT (verifica assinatura, expiração)
+    payload = security.decode_password_reset_token(token)
+    if not payload or not payload.get("sub"):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Token de redefinição inválido ou expirado (JWT)"
+        )
+    
+    email = payload["sub"]
+    
+    # 2. Busca o usuário pelo token HASH no banco (garante que não foi usado)
+    user = await crud_user.get_user_by_reset_token(db, token=token)
+    
+    if not user or user.email != email:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Token de redefinição inválido, expirado ou já utilizado (DB)"
+        )
+        
+    # 3. Usuário e token são válidos. Atualiza a senha.
+    try:
+        updated_user = await crud_user.reset_password(
+            db, user=user, new_password=new_password
+        )
+        logger.info(f"Senha redefinida com sucesso para o usuário: {user.email}")
+        
+        # Opcional: Enviar um email de confirmação "Sua senha foi alterada"
+        
+        return updated_user
+        
+    except Exception as e:
+        logger.error(f"Erro ao tentar redefinir a senha para {user.email}: {e}")
+        await db.rollback() # Garante que a transação falhe
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Ocorreu um erro ao atualizar sua senha."
+        )

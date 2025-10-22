@@ -9,7 +9,7 @@ from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
 from slowapi.middleware import SlowAPIMiddleware
 # --- Fim imports slowapi ---
-
+from app.db.session import dispose_engine # Import the dispose function
 # Importar routers
 from app.api.endpoints import auth, users
 
@@ -65,6 +65,12 @@ api_prefix = "/api/v1"
 app.include_router(auth.router, prefix=f"{api_prefix}/auth", tags=["Authentication"])
 app.include_router(users.router, prefix=f"{api_prefix}/users", tags=["Users"])
 # --- Fim aplicação rate limiting ---
+
+@app.on_event("shutdown")
+async def shutdown_event():
+    print("Shutting down: Disposing database engine...")
+    await dispose_engine()
+    print("Database engine disposed.")
 
 @app.get("/")
 def read_root():

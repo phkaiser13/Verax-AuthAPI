@@ -8,9 +8,10 @@ from app.crud.base import CRUDBase
 from app.models.user import User
 from datetime import datetime, timedelta, timezone
 from app.schemas.user import UserCreate, UserUpdate
-from app.core.security import get_password_hash, verify_password
+from app.core.security import get_password_hash, verify_password, create_password_reset_token
 # --- Importar CRUD do refresh token ---
 from app.crud import crud_refresh_token
+from app.core.config import settings
 # --- Fim import ---
 from loguru import logger # Adicionar logger
 
@@ -19,17 +20,6 @@ class CRUDUser(CRUDBase[User, UserCreate, UserUpdate]):
         stmt = select(User).filter(User.email == email)
         result = await db.execute(stmt)
         return result.scalars().first()
-
-    async def authenticate(
-        self, db: AsyncSession, *, email: str, password: str
-    ) -> Optional[User]:
-        user = await self.get_by_email(db, email=email)
-        if not user:
-            return None
-        # Usar a função de verificação que já faz o encode/truncate
-        if not verify_password(password, user.hashed_password):
-            return None
-        return user
 
     # Sobrescreve o create para hashear a senha
     async def create(self, db: AsyncSession, *, obj_in: UserCreate) -> tuple[User, str]: # Retorna usuário e token
@@ -94,5 +84,64 @@ class CRUDUser(CRUDBase[User, UserCreate, UserUpdate]):
         if not verify_password(password, user.hashed_password):
             return None
         return user
+
+async def generate_password_reset_token(
+        self, db: AsyncSession, *, user: User
+    ) -> tuple[User, str]:
+        """
+        Gera um token JWT, calcula seu hash e data de expiração,
+        e salva no usuário. Retorna o usuário e o token original.
+        """
+        token, expires_at = create_password_reset_token(email=user.email)
+        token_hash = hashlib.sha256(token.encode('utf-8')).hexdigest()
+        
+        user.reset_password_token_hash = token_hash
+        user.reset_password_token_expires = expires_at # Já está em UTC naive
+        
+        db.add(user)
+        await db.commit()
+        await db.refresh(user)
+        
+        return user, token # Retorna o token original para envio do email
+
+async def get_user_by_reset_token(
+        self, db: AsyncSession, *, token: str
+    ) -> User | None:
+        """Busca um usuário ativo pelo hash do token de reset."""
+        token_hash = hashlib.sha256(token.encode('utf-8')).hexdigest()
+        now = datetime.now(timezone.utc).replace(tzinfo=None) # UTC naive
+
+        stmt = select(User).where(
+            User.reset_password_token_hash == token_hash,
+            User.reset_password_token_expires > now,
+            User.is_active == True
+        )
+        result = await db.execute(stmt)
+        return result.scalars().first()
+
+async def reset_password(
+        self, db: AsyncSession, *, user: User, new_password: str
+    ) -> User:
+        """Atualiza a senha do usuário e invalida o token de reset."""
+        
+        # Define a nova senha
+        user.hashed_password = get_password_hash(new_password)
+        
+        # Invalida o token de reset
+        user.reset_password_token_hash = None
+        user.reset_password_token_expires = None
+        
+        db.add(user)
+        
+        # Revoga todos os refresh tokens ativos por segurança
+        revoked_count = await crud_refresh_token.revoke_all_refresh_tokens_for_user(
+            db, user_id=user.id
+        )
+        logger.info(f"Revogados {revoked_count} refresh tokens para usuário ID {user.id} após reset de senha.")
+        
+        await db.commit()
+        await db.refresh(user)
+        return user
+
 
 user = CRUDUser(User)

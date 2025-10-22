@@ -1,40 +1,64 @@
 # auth_api/app/core/config.py
 import os
+import logging
 from pydantic_settings import BaseSettings
-from dotenv import load_dotenv
-from pydantic import EmailStr # Manter a importação
+from pydantic import EmailStr
+from pathlib import Path
 
-load_dotenv()
+# --- 1. Definir o caminho para o .env ---
+# Isso garante que o Pydantic encontre o .env, não importa de onde o script é executado.
+# Sobe 3 níveis: app/core/config.py -> app/core/ -> app/ -> (raiz do projeto 'auth_api')
+BASE_DIR = Path(__file__).resolve().parent.parent.parent
+ENV_FILE_PATH = BASE_DIR / ".env"
+
+# Log de debug para verificar se o caminho está correto
+# print(f"DEBUG: Procurando arquivo .env em: {ENV_FILE_PATH}")
+
 
 class Settings(BaseSettings):
-    # ... (DATABASE_URL, SECRET_KEY, ALGORITHM, etc.) ...
+    # --- 2. Definir TODAS as variáveis do .env ---
+    # O Pydantic irá carregá-las automaticamente do .env (usando o caminho abaixo)
+    
+    # Core
+    DATABASE_URL: str
+    SECRET_KEY: str
+    ALGORITHM: str = "HS256"
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 60
 
-    # --- Configurações de Email ---
-    EMAIL_HOST: str = os.getenv("EMAIL_HOST", "localhost")
-    EMAIL_PORT: int = int(os.getenv("EMAIL_PORT", 2525))
-    EMAIL_USERNAME: str | None = os.getenv("EMAIL_USERNAME")
-    EMAIL_PASSWORD: str | None = os.getenv("EMAIL_PASSWORD")
-
-    # --- CORREÇÃO AQUI ---
-    # Apenas defina o tipo EmailStr e atribua o valor do getenv diretamente.
-    # Pydantic validará se o valor carregado é um email válido.
-    EMAIL_FROM: EmailStr = os.getenv("EMAIL_FROM", "noreply@example.com")
-    # --- FIM DA CORREÇÃO ---
-
-    EMAIL_FROM_NAME: str | None = os.getenv("EMAIL_FROM_NAME", "Auth API")
-    EMAIL_USE_TLS: bool = os.getenv("EMAIL_USE_TLS", "true").lower() == "true"
-    EMAIL_USE_SSL: bool = os.getenv("EMAIL_USE_SSL", "false").lower() == "true"
-    VERIFICATION_URL_BASE: str = os.getenv("VERIFICATION_URL_BASE", "http://localhost:8000/verify") # URL base para links
-
+    # Refresh Token
+    REFRESH_SECRET_KEY: str
+    REFRESH_TOKEN_EXPIRE_DAYS: int = 7
+    
+    # Email SMTP (Não usamos mais os.getenv, Pydantic cuida disso)
+    EMAIL_HOST: str = "localhost"
+    EMAIL_PORT: int = 2525
+    EMAIL_USERNAME: str | None = None
+    EMAIL_PASSWORD: str | None = None
+    EMAIL_FROM: EmailStr = "noreply@example.com"
+    EMAIL_FROM_NAME: str | None = "Auth API"
+    EMAIL_USE_TLS: bool = True
+    EMAIL_USE_SSL: bool = False
+    
+    # Email Links
+    VERIFICATION_URL_BASE: str = "http://localhost:8000/verify"
     EMAIL_VERIFICATION_TOKEN_EXPIRE_MINUTES: int = 60
+    
+    # Password Reset
+    RESET_PASSWORD_SECRET_KEY: str | None = None
+    RESET_PASSWORD_TOKEN_EXPIRE_MINUTES: int = 30
+    RESET_PASSWORD_URL_BASE: str = "http://localhost:8000/reset-password"
 
-    # --- Configurações de Reset de Senha ---
-    RESET_PASSWORD_SECRET_KEY: str | None = os.getenv("RESET_PASSWORD_SECRET_KEY")
-    RESET_PASSWORD_TOKEN_EXPIRE_MINUTES: int = int(os.getenv("RESET_PASSWORD_TOKEN_EXPIRE_MINUTES", 30))
-    RESET_PASSWORD_URL_BASE: str = os.getenv("RESET_PASSWORD_URL_BASE", "http://localhost:8000/reset-password") # URL base para links de reset
-
-
+    # --- 3. Configurar o Pydantic para ler o .env ---
     class Config:
         case_sensitive = True
+        env_file = ENV_FILE_PATH       # Caminho explícito para o .env
+        env_file_encoding = 'utf-8'   # Codificação correta
 
-settings = Settings()
+# --- 4. Instanciar as configurações ---
+try:
+    settings = Settings()
+    # print(f"DEBUG: DATABASE_URL carregada: {settings.DATABASE_URL[:20]}...") # Descomente para testar
+except Exception as e:
+    logging.error(f"FATAL: Erro ao carregar 'settings' a partir do .env em {ENV_FILE_PATH}: {e}")
+    # Se falhar aqui, o programa vai parar, o que é bom.
+    raise e
