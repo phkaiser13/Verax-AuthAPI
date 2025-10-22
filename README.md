@@ -166,7 +166,8 @@ PATCH /api/v1/mgmt/users/{id_ou_email}/claims
 
 Bash
 
-```curl -X 'PATCH' \
+```
+curl -X 'PATCH' \
   'http://localhost:8001/api/v1/mgmt/users/novo_usuario@meusistema.com/claims' \
   -H 'accept: application/json' \
   -H 'X-API-Key: sk_live_UMA_CHAVE_SECRETA_MUITO_FORTE...' \
@@ -175,7 +176,8 @@ Bash
   "roles": ["user", "beta_tester"],
   "permissions": ["read:products", "write:cart"],
   "ecommerce_user_id": 4567
-}' ```
+}'
+ ```
 
 Resultado: A Auth API armazena este JSON no campo custom_claims do usuário, sem entender o que roles ou ecommerce_user_id significam.
 
@@ -190,14 +192,16 @@ POST /api/v1/auth/token
   'http://localhost:8001/api/v1/auth/token' \
   -H 'accept: application/json' \
   -H 'Content-Type: application/x-www-form-urlencoded' \
-  -d 'username=novo_usuario@meusistema.com&password=Password123!&scope=roles+permissions' ```
+  -d 'username=novo_usuario@meusistema.com&password=Password123!&scope=roles+permissions'
+ ```
   
 Parâmetro scope: Nós pedimos roles e permissions. A API irá buscar esses campos no custom_claims do usuário e injetá-los no JWT.
 
 # Passo 5: 🛡️ Usar o JWT (Frontend/Backend)
 Seu frontend recebe o access_token. O payload desse token (decodificado) será:
 
-``` JSON
+```
+ JSON
 
 {
   "sub": "123",
@@ -205,7 +209,8 @@ Seu frontend recebe o access_token. O payload desse token (decodificado) será:
   "token_type": "access",
   "roles": ["user", "beta_tester"],
   "permissions": ["read:products", "write:cart"]
-} ```
+}
+ ```
 Agora, quando seu frontend faz uma chamada para o backend do seu E-commerce (ex: GET /api/products), ele envia este token.
 
 O backend do seu E-commerce só precisa:
