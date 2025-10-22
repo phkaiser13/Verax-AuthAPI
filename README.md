@@ -191,11 +191,11 @@ Seu frontend recebe o access_token. O payload desse token (decodificado) será:
 JSON
 
 {
-  "sub": "123", // O ID do usuário na Auth API
+  "sub": "123",
   "exp": 1678886400,
   "token_type": "access",
-  "roles": ["user", "beta_tester"], // <--- Injetado!
-  "permissions": ["read:products", "write:cart"] // <--- Injetado!
+  "roles": ["user", "beta_tester"],
+  "permissions": ["read:products", "write:cart"]
 }
 Agora, quando seu frontend faz uma chamada para o backend do seu E-commerce (ex: GET /api/products), ele envia este token.
 
