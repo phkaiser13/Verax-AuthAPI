@@ -59,18 +59,15 @@ Uma Chave de API (API Key) do SendGrid.
 
 Um "Remetente Verificado" (Verified Sender) configurado no SendGrid.
 
-1. Instalação
+# 1. Instalação
 Clone o repositório:
-
-Bash
 
 ```
 git clone https://github.com/SEU_USUARIO/SEU_REPOSITORIO.git
 cd SEU_REPOSITORIO
 ```
-Crie e ative um ambiente virtual:
 
-Bash
+**Crie e ative um ambiente virtual:**
 
 ```
 python -m venv venv
@@ -79,29 +76,41 @@ source venv/bin/activate   # (Linux/macOS)
 ```
 
 
-Instale as dependências:
+**Instale as dependências:**
 
 
 ```
 pip install -r requirements.txt
-´´´
+```
 
-2. Configuração
+# 2. Configuração
 Crie um banco de dados PostgreSQL (ex: auth_db).
 
 Crie um arquivo .env na raiz do projeto e adicione as seguintes variáveis (você pode usar o .env do repositório como base):
 
-**String de conexão (use asyncpg)** = DATABASE_URL="postgresql+asyncpg://USUARIO:SENHA@localhost:5432/auth_db"
+**String de conexão (use asyncpg)** = 
+DATABASE_URL="postgresql+asyncpg://USUARIO:SENHA@localhost:5432/auth_db"
 
-**Chaves Secretas (use 'openssl rand -hex 32' para gerar)** =SECRET_KEY="SUA_CHAVE_SECRETA_FORTE_AQUI", REFRESH_SECRET_KEY="UMA_CHAVE_SECRETA_DIFERENTE_E_FORTE_AQUI", ALGORITHM="HS256"
+**Chaves Secretas (use 'openssl rand -hex 32' para gerar)** = 
+SECRET_KEY="SUA_CHAVE_SECRETA_FORTE_AQUI"
+REFRESH_SECRET_KEY="UMA_CHAVE_SECRETA_DIFERENTE_E_FORTE_AQUI"
+ALGORITHM="HS256"
 
-**Chave da API de Gerenciamento (use 'openssl rand -hex 64')** = INTERNAL_API_KEY="sk_live_UMA_CHAVE_SECRETA_MUITO_FORTE_PARA_SISTEMAS"
+**Chave da API de Gerenciamento (use 'openssl rand -hex 64')** = 
+INTERNAL_API_KEY="sk_live_UMA_CHAVE_SECRETA_MUITO_FORTE_PARA_SISTEMAS"
 
-**Configurações de Email (SendGrid)** = SENDGRID_API_KEY="SG.SUA_CHAVE_API_SENDGRID_AQUI", EMAIL_FROM="seu_email_verificado@sendgrid.com", EMAIL_FROM_NAME="Auth API"
+**Configurações de Email (SendGrid)** = 
+SENDGRID_API_KEY="SG.SUA_CHAVE_API_SENDGRID_AQUI"
+EMAIL_FROM="seu_email_verificado@sendgrid.com"
+EMAIL_FROM_NAME="Auth API"
 
-**URLs do SEU Frontend** = VERIFICATION_URL_BASE="http://localhost:3000/verify-email", ESET_PASSWORD_URL_BASE="http://localhost:3000/reset-password"
+**URLs do SEU Frontend** = 
+VERIFICATION_URL_BASE="http://localhost:3000/verify-email" 
+RESET_PASSWORD_URL_BASE="http://localhost:3000/reset-password"
 
-**Configurações de Segurança (Account Lockout)** = LOGIN_MAX_FAILED_ATTEMPTS=5, LOGIN_LOCKOUT_MINUTES=15
+**Configurações de Segurança (Account Lockout)** = 
+LOGIN_MAX_FAILED_ATTEMPTS=5
+LOGIN_LOCKOUT_MINUTES=15
 
 
 # 3. Migrar o Banco de Dados (Alembic)
@@ -113,7 +122,7 @@ Para criar todas as tabelas pela primeira vez (ou aplicar novas migrações), ro
 
 Isso criará as tabelas users, refresh_tokens e alembic_version no seu banco de dados.
 
-4. Rodar o Servidor
+# 4. Rodar o Servidor
 
 Use o Uvicorn para rodar a aplicação:
 
@@ -131,9 +140,7 @@ O usuário se registra no seu sistema. Seu backend faz uma chamada para a Auth A
 
 POST /api/v1/users/
 
-Bash
-
-curl -X 'POST' \
+`curl -X 'POST' \
   'http://localhost:8001/api/v1/users/' \
   -H 'accept: application/json' \
   -H 'Content-Type: application/json' \
@@ -141,24 +148,25 @@ curl -X 'POST' \
   "email": "novo_usuario@meusistema.com",
   "password": "Password123!",
   "full_name": "Nome do Usuário"
-}'
+}' `
+
 Resultado: O usuário é criado com is_active: false e is_verified: false. Um email de verificação é enviado para o usuário.
 
-Passo 2: 📧 Ativar o Usuário (Usuário)
+# Passo 2: 📧 Ativar o Usuário (Usuário)
 O usuário clica no link em seu email. O link aponta para o seu frontend (VERIFICATION_URL_BASE), que extrai o token e chama a Auth API:
 
 GET /api/v1/auth/verify-email/{token}
 
 Resultado: O usuário é atualizado para is_active: true e is_verified: true. A conta agora está pronta para login.
 
-Passo 3: 🔑 Definir Roles e Claims (Backend-para-Backend)
+# Passo 3: 🔑 Definir Roles e Claims (Backend-para-Backend)
 Esta é a mágica. O backend do seu sistema (E-commerce) decide quais permissões esse novo usuário tem. Ele usa a API de Gerenciamento (/mgmt) para salvar esses dados.
 
 PATCH /api/v1/mgmt/users/{id_ou_email}/claims
 
 Bash
 
-curl -X 'PATCH' \
+`curl -X 'PATCH' \
   'http://localhost:8001/api/v1/mgmt/users/novo_usuario@meusistema.com/claims' \
   -H 'accept: application/json' \
   -H 'X-API-Key: sk_live_UMA_CHAVE_SECRETA_MUITO_FORTE...' \
@@ -167,27 +175,29 @@ curl -X 'PATCH' \
   "roles": ["user", "beta_tester"],
   "permissions": ["read:products", "write:cart"],
   "ecommerce_user_id": 4567
-}'
+}' `
+
 Resultado: A Auth API armazena este JSON no campo custom_claims do usuário, sem entender o que roles ou ecommerce_user_id significam.
 
-Passo 4: 🎟️ Login com Scopes (Frontend)
+# Passo 4: 🎟️ Login com Scopes (Frontend)
 Quando o usuário faz login no seu frontend, você pede os "scopes" (claims) que sua aplicação precisa.
 
 POST /api/v1/auth/token
 
-Bash
-
 # Note: Esta rota usa application/x-www-form-urlencoded
-curl -X 'POST' \
+
+`curl -X 'POST' \
   'http://localhost:8001/api/v1/auth/token' \
   -H 'accept: application/json' \
   -H 'Content-Type: application/x-www-form-urlencoded' \
-  -d 'username=novo_usuario@meusistema.com&password=Password123!&scope=roles+permissions'
+  -d 'username=novo_usuario@meusistema.com&password=Password123!&scope=roles+permissions' `
+  
 Parâmetro scope: Nós pedimos roles e permissions. A API irá buscar esses campos no custom_claims do usuário e injetá-los no JWT.
 
-Passo 5: 🛡️ Usar o JWT (Frontend/Backend)
+# Passo 5: 🛡️ Usar o JWT (Frontend/Backend)
 Seu frontend recebe o access_token. O payload desse token (decodificado) será:
 
+`
 JSON
 
 {
@@ -197,6 +207,7 @@ JSON
   "roles": ["user", "beta_tester"],
   "permissions": ["read:products", "write:cart"]
 }
+`
 Agora, quando seu frontend faz uma chamada para o backend do seu E-commerce (ex: GET /api/products), ele envia este token.
 
 O backend do seu E-commerce só precisa:
@@ -209,10 +220,10 @@ Olhar os claims (ex: token_data["roles"]) e aplicar sua própria lógica de auto
 
 Você nunca mais precisará consultar o banco de dados para saber as permissões de um usuário a cada requisição.
 
-📚 Referência da API
+# 📚 Referência da API
 A API é dividida em três seções principais. Para detalhes completos dos endpoints e schemas, veja a documentação interativa em /docs.
 
-1. 🔑 Authentication (/api/v1/auth)
+**1. 🔑 Authentication (/api/v1/auth)**
 Descrição: Endpoints públicos para o ciclo de vida da autenticação.
 
 Endpoints Chave:
@@ -231,7 +242,7 @@ POST /reset-password: Definir uma nova senha com um token.
 
 GET /me: Obter os dados do usuário logado (requer token).
 
-2. 👤 User Management (/api/v1/users)
+**2. 👤 User Management (/api/v1/users)**
 Descrição: Endpoints para gerenciamento de usuários.
 
 Endpoints Chave:
@@ -244,7 +255,7 @@ GET /{user_id}: Buscar um usuário por ID (Protegido, requer role 'admin').
 
 PUT /me: Atualizar os dados do próprio usuário logado.
 
-3. ⚙️ Internal Management (/api/v1/mgmt)
+**3. ⚙️ Internal Management (/api/v1/mgmt)**
 Descrição: Endpoints privados para gerenciamento sistema-para-sistema.
 
 Proteção: Requer o INTERNAL_API_KEY no header X-API-Key.
@@ -253,7 +264,7 @@ Endpoints Chave:
 
 PATCH /users/{id_ou_email}/claims: Mescla (Atualiza) os custom_claims de um usuário (preferencial).
 
-🤝 Contribuição
+# 🤝 Contribuição
 Contribuições são muito bem-vindas! Sinta-se à vontade para abrir uma issue ou enviar um pull request.
 
 Faça um Fork do projeto.
@@ -266,5 +277,5 @@ Faça o Push para a Branch (git push origin feature/MinhaFeatureIncrivel).
 
 Abra um Pull Request.
 
-📜 Licença
+# 📜 Licença
 Este projeto está licenciado sob a Licença MIT. Veja o arquivo LICENSE para mais detalhes.
