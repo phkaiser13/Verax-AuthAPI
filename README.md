@@ -64,38 +64,44 @@ Clone o repositório:
 
 Bash
 
+```
 git clone https://github.com/SEU_USUARIO/SEU_REPOSITORIO.git
 cd SEU_REPOSITORIO
+```
 Crie e ative um ambiente virtual:
 
 Bash
 
-```python -m venv venv
+```
+python -m venv venv
 source venv/bin/activate   # (Linux/macOS)
-.\venv\Scripts\activate    # (Windows)```
+.\venv\Scripts\activate    # (Windows)
+```
 
 
 Instale as dependências:
 
 
-```pip install -r requirements.txt```
+```
+pip install -r requirements.txt
+´´´
 
 2. Configuração
 Crie um banco de dados PostgreSQL (ex: auth_db).
 
 Crie um arquivo .env na raiz do projeto e adicione as seguintes variáveis (você pode usar o .env do repositório como base):
 
-*String de conexão (use asyncpg)* = DATABASE_URL="postgresql+asyncpg://USUARIO:SENHA@localhost:5432/auth_db"
+**String de conexão (use asyncpg)** = DATABASE_URL="postgresql+asyncpg://USUARIO:SENHA@localhost:5432/auth_db"
 
-*Chaves Secretas (use 'openssl rand -hex 32' para gerar)* =SECRET_KEY="SUA_CHAVE_SECRETA_FORTE_AQUI", REFRESH_SECRET_KEY="UMA_CHAVE_SECRETA_DIFERENTE_E_FORTE_AQUI", ALGORITHM="HS256"
+**Chaves Secretas (use 'openssl rand -hex 32' para gerar)** =SECRET_KEY="SUA_CHAVE_SECRETA_FORTE_AQUI", REFRESH_SECRET_KEY="UMA_CHAVE_SECRETA_DIFERENTE_E_FORTE_AQUI", ALGORITHM="HS256"
 
-*Chave da API de Gerenciamento (use 'openssl rand -hex 64')* = INTERNAL_API_KEY="sk_live_UMA_CHAVE_SECRETA_MUITO_FORTE_PARA_SISTEMAS"
+**Chave da API de Gerenciamento (use 'openssl rand -hex 64')** = INTERNAL_API_KEY="sk_live_UMA_CHAVE_SECRETA_MUITO_FORTE_PARA_SISTEMAS"
 
-*Configurações de Email (SendGrid)* = SENDGRID_API_KEY="SG.SUA_CHAVE_API_SENDGRID_AQUI", EMAIL_FROM="seu_email_verificado@sendgrid.com", EMAIL_FROM_NAME="Auth API"
+**Configurações de Email (SendGrid)** = SENDGRID_API_KEY="SG.SUA_CHAVE_API_SENDGRID_AQUI", EMAIL_FROM="seu_email_verificado@sendgrid.com", EMAIL_FROM_NAME="Auth API"
 
-*URLs do SEU Frontend* = VERIFICATION_URL_BASE="http://localhost:3000/verify-email", ESET_PASSWORD_URL_BASE="http://localhost:3000/reset-password"
+**URLs do SEU Frontend** = VERIFICATION_URL_BASE="http://localhost:3000/verify-email", ESET_PASSWORD_URL_BASE="http://localhost:3000/reset-password"
 
-*Configurações de Segurança (Account Lockout)* = LOGIN_MAX_FAILED_ATTEMPTS=5, LOGIN_LOCKOUT_MINUTES=15
+**Configurações de Segurança (Account Lockout)** = LOGIN_MAX_FAILED_ATTEMPTS=5, LOGIN_LOCKOUT_MINUTES=15
 
 
 # 3. Migrar o Banco de Dados (Alembic)
@@ -103,21 +109,21 @@ Este projeto usa Alembic para gerenciar o schema do banco de dados.
 
 Para criar todas as tabelas pela primeira vez (ou aplicar novas migrações), rode:
 
-Bash
+```alembic upgrade head```
 
-alembic upgrade head
 Isso criará as tabelas users, refresh_tokens e alembic_version no seu banco de dados.
 
 4. Rodar o Servidor
+
 Use o Uvicorn para rodar a aplicação:
 
-Bash
+**O --reload monitora mudanças nos arquivos (ótimo para dev)**
 
-# O --reload monitora mudanças nos arquivos (ótimo para dev)
-uvicorn main:app --host 0.0.0.0 --port 8001 --reload
+```uvicorn main:app --host 0.0.0.0 --port 8001 --reload```
+
 A API estará disponível em http://localhost:8001 🚀. A documentação interativa (Swagger UI) estará em http://localhost:8001/docs.
 
-🛠️ Fluxo de Integração (Tutorial)
+# 🛠️ Fluxo de Integração (Tutorial)
 Este é o guia passo-a-passo de como um desenvolvedor deve integrar esta Auth API em seu sistema (ex: um E-commerce).
 
 Passo 1: ✍️ Registrar o Usuário (Frontend/Backend)
