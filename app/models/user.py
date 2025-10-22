@@ -21,5 +21,11 @@ class User(Base):
     # --- Fim Novos Campos ---
     reset_password_token_hash: Mapped[Optional[str]] = mapped_column(String(255), index=True)
     reset_password_token_expires: Mapped[Optional[datetime]] = mapped_column(DateTime)
+    
+    # --- NOVOS CAMPOS: Account Lockout ---
+    failed_login_attempts: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    locked_until: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True) # Armazena em UTC naive
+    # --- FIM NOVOS CAMPOS ---
+    
     created_at: Mapped[datetime] = mapped_column(DateTime, default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=func.now(), onupdate=func.now())

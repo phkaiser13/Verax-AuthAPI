@@ -1,74 +1,66 @@
 # auth_api/app/services/email_service.py
-import emails
-from emails.template import JinjaTemplate
-from app.core.config import settings
-from loguru import logger
+import asyncio
+import traceback
 from typing import Dict, Any
-import asyncio  # Importação no topo
-import traceback # Importação para log completo
+from loguru import logger
+from sendgrid import SendGridAPIClient
+from sendgrid.helpers.mail import Mail, From, To, Content
+from app.core.config import settings
 
-async def send_email_async(
+# Helper assíncrono para a biblioteca 'sendgrid' (que é síncrona)
+async def send_email_http_api(
     email_to: str,
-    subject_template: str = "",
-    html_template: str = "",
-    environment: Dict[str, Any] = {},
+    subject: str,
+    html_content: str
 ) -> bool:
-    """Envia um email de forma assíncrona."""
-    assert settings.EMAIL_FROM, "EMAIL_FROM deve estar configurado"
+    """
+    Envia um email usando a API HTTP do SendGrid de forma assíncrona.
+    """
+    if not settings.SENDGRID_API_KEY:
+        logger.error("SENDGRID_API_KEY não está configurada. Email não será enviado.")
+        return False
 
-    message = emails.Message(
-        subject=JinjaTemplate(subject_template),
-        html=JinjaTemplate(html_template),
-        mail_from=(settings.EMAIL_FROM_NAME, settings.EMAIL_FROM),
+    message = Mail(
+        from_email=From(settings.EMAIL_FROM, settings.EMAIL_FROM_NAME),
+        to_emails=To(email_to),
+        subject=subject,
+        html_content=Content("text/html", html_content)
     )
 
-    smtp_options = {
-        "host": settings.EMAIL_HOST,
-        "port": settings.EMAIL_PORT,
-        "tls": settings.EMAIL_USE_TLS,
-        "ssl": settings.EMAIL_USE_SSL,
-    }
-    if settings.EMAIL_USERNAME:
-        smtp_options["user"] = settings.EMAIL_USERNAME
-    if settings.EMAIL_PASSWORD:
-        smtp_options["password"] = settings.EMAIL_PASSWORD
-
-    logger.debug(f"Tentando conectar ao SMTP: {smtp_options.get('host')}:{smtp_options.get('port')}")
-    logger.debug(f"Opções SMTP: {smtp_options}")
-
     try:
-        # A biblioteca 'emails' não é nativamente async, rodamos em thread separada
+        sg = SendGridAPIClient(settings.SENDGRID_API_KEY)
+        
+        # A biblioteca 'sendgrid' é bloqueante (IO-bound)
+        # Rodamos em um executor de thread separado para não bloquear o loop de eventos
         loop = asyncio.get_running_loop()
         response = await loop.run_in_executor(
-            None, # Usa o executor de thread padrão
-            message.send, # Função a ser executada
-            email_to, # Argumentos para message.send
-            smtp_options
+            None,  # Usa o executor de thread padrão
+            sg.send,
+            message
         )
-        
-        # --- LOG DE DEBUG MELHORADO ---
-        if response:
-            logger.info(f"Resposta completa do SMTP: {response.__dict__}")
-            logger.info(f"Email enviado para {email_to}, Assunto: {subject_template}. Resposta SMTP (status_code): {response.status_code}")
-            # Verifica se a resposta foi bem-sucedida
-            return response.status_code in [250, 252] # 250 OK, 252 Cannot VRFY
+
+        status_code = response.status_code
+        if 200 <= status_code < 300:
+            logger.info(f"Email enviado com sucesso para {email_to} via SendGrid. Status: {status_code}")
+            return True
         else:
-            logger.warning(f"Falha ao enviar email para {email_to}. A resposta do SMTP foi 'None' ou vazia.")
+            logger.error(f"Falha ao enviar email para {email_to} via SendGrid.")
+            logger.error(f"Status: {status_code}")
+            logger.error(f"Body: {response.body}")
+            logger.error(f"Headers: {response.headers}")
             return False
-        # --- FIM DO LOG DE DEBUG ---
 
     except Exception as e:
-        logger.error(f"Erro CRÍTICO ao enviar email para {email_to}: {e}")
+        logger.error(f"Erro CRÍTICO ao enviar email para {email_to} com SendGrid: {e}")
         logger.error(f"Traceback completo: {traceback.format_exc()}")
         return False
 
 # --- Função específica para email de verificação ---
 async def send_verification_email(email_to: str, verification_token: str) -> bool:
-    project_name = "Sua Aplicação" # Ou buscar de settings
+    project_name = settings.EMAIL_FROM_NAME or "Sua Aplicação"
     subject = f"{project_name} - Verifique seu endereço de e-mail"
-    verification_url = f"{settings.VERIFICATION_URL_BASE}/{verification_token}" # Monta a URL completa
+    verification_url = f"{settings.VERIFICATION_URL_BASE}/{verification_token}"
 
-    # Templates HTML e Texto simples (podem ser movidos para arquivos .html)
     html_content = f"""
     <html>
     <body>
@@ -81,20 +73,18 @@ async def send_verification_email(email_to: str, verification_token: str) -> boo
     </html>
     """
 
-    return await send_email_async(
+    return await send_email_http_api(
         email_to=email_to,
-        subject_template=subject,
-        html_template=html_content,
-        environment={"project_name": project_name, "verification_url": verification_url}
+        subject=subject,
+        html_content=html_content
     )
 
 # --- Função específica para email de reset de senha ---
 async def send_password_reset_email(email_to: str, reset_token: str) -> bool:
-    project_name = "Sua Aplicação" # Ou buscar de settings
+    project_name = settings.EMAIL_FROM_NAME or "Sua Aplicação"
     subject = f"{project_name} - Redefinição de Senha"
-    reset_url = f"{settings.RESET_PASSWORD_URL_BASE}/{reset_token}" # Monta a URL completa
+    reset_url = f"{settings.RESET_PASSWORD_URL_BASE}/{reset_token}"
 
-    # Templates HTML e Texto simples
     html_content = f"""
     <html>
     <body>
@@ -109,10 +99,8 @@ async def send_password_reset_email(email_to: str, reset_token: str) -> bool:
     </html>
     """
 
-    return await send_email_async(
+    return await send_email_http_api(
         email_to=email_to,
-        subject_template=subject,
-        html_template=html_content,
-        environment={"project_name": project_name, "reset_url": reset_url}
+        subject=subject,
+        html_content=html_content
     )
-

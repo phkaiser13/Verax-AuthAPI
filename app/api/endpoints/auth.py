@@ -1,5 +1,5 @@
 from loguru import logger
-from datetime import timedelta
+from datetime import datetime, timedelta, timezone # Importar datetime, timezone
 from typing import Any
 from app.crud import crud_refresh_token # Importar CRUD do refresh token
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -19,6 +19,9 @@ from fastapi import Path, BackgroundTasks # Adicionar Path E BackgroundTasks
 # --- IMPORT FROM DEPENDENCIES ---
 from app.api.dependencies import get_current_active_user, oauth2_scheme
 # --- END IMPORT CORRECTION ---
+# --- IMPORT CUSTOM EXCEPTION ---
+from app.core.exceptions import AccountLockedException
+# --- END IMPORT ---
 
 router = APIRouter()
 
@@ -30,13 +33,33 @@ async def login_for_access_token(
     db: AsyncSession = Depends(get_db),
     form_data: OAuth2PasswordRequestForm = Depends(),
 ) -> Any:
-    user = await crud_user.authenticate(
-        db, email=form_data.username, password=form_data.password
-    )
+    try:
+        user = await crud_user.authenticate(
+            db, email=form_data.username, password=form_data.password
+        )
+    except AccountLockedException as e:
+        # Captura a exceção de conta bloqueada
+        detail_msg = "Account locked due to too many failed login attempts."
+        if e.locked_until:
+            now = datetime.now(timezone.utc).replace(tzinfo=None)
+            if e.locked_until > now: # Checa se o bloqueio ainda está ativo
+                remaining = e.locked_until - now
+                # Arredonda para cima os minutos
+                remaining_minutes = int(remaining.total_seconds() // 60) + 1 
+                detail_msg = f"Account locked. Try again in {remaining_minutes} minute(s)."
+        
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=detail_msg
+        )
+        
     # A verificação de is_verified e is_active agora está dentro do authenticate
     if not user:
         # Se authenticate retornou None por email/senha errados OU por não estar ativo/verificado
         user_check = await crud_user.get_by_email(db, email=form_data.username)
+        
+        # Não checamos mais por 'locked_until' aqui, pois a exceção já tratou disso.
+        
         if user_check and (not user_check.is_active or not user_check.is_verified):
              raise HTTPException(
                  status_code=status.HTTP_400_BAD_REQUEST,
