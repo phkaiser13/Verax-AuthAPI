@@ -1,8 +1,9 @@
-<p align="center"> <strong>Um serviço de identidade agnóstico, seguro e flexível.</strong> <br /> Construído com FastAPI e PostgreSQL para servir como um provedor de identidade (IdP) centralizado para qualquer aplicação. </p>
+Um serviço de identidade agnóstico, seguro e flexível.
+Construído com FastAPI e PostgreSQL para servir como um provedor de identidade (IdP) centralizado para qualquer aplicação.
 
-<p align="center"> <a href="https://github.com/SEU_USUARIO/SEU_REPOSITORIO/actions"> <img src="https://img.shields.io/github/actions/workflow/status/SEU_USUARIO/SEU_REPOSITORIO/main.yml?branch=main&style=for-the-badge" alt="Status do Build"> </a> <a href="https://github.com/SEU_USUARIO/SEU_REPOSITORIO/blob/master/LICENSE"> <img src="https://img.shields.io/github/license/SEU_USUARIO/SEU_REPOSITORIO?style=for-the-badge&color=blue" alt="Licença"> </a> <img src="https://img.shields.io/badge/Python-3.10%2B-blue?style=for-the-badge&logo=python" alt="Python 3.10+"> <img src="https://img.shields.io/badge/FastAPI-0.119.1-05998b?style=for-the-badge&logo=fastapi" alt="FastAPI"> </p>
+<div align="center"> <img src="https://img.shields.io/github/actions/workflow/status/SEU_USUARIO/SEU_REPOSITORIO/main.yml?branch=main&style=for-the-badge" alt="Status do Build"> <img src="https://img.shields.io/github/license/SEU_USUARIO/SEU_REPOSITORIO?style=for-the-badge&color=blue" alt="Licença"> <img src="https://img.shields.io/badge/Python-3.10%2B-blue?style=for-the-badge&logo=python" alt="Python 3.10+"> <img src="https://img.shields.io/badge/FastAPI-0.119.1-05998b?style=for-the-badge&logo=fastapi" alt="FastAPI"> </div>
 
-💡 Conceito Central: Autenticação vs. Autorização
+# 💡 Conceito Central: Autenticação vs. Autorização
 Esta API foi projetada com uma filosofia fundamental: a rigorosa separação entre Autenticação (provar quem você é) e Autorização (definir o que você pode fazer).
 
 Esta API (Auth API) cuida da Autenticação:
@@ -23,7 +24,7 @@ Você solicita esses dados (scopes) durante o login para que sejam injetados no 
 
 Este design oferece flexibilidade total, permitindo que qualquer sistema utilize um serviço de identidade robusto enquanto mantém controle total sobre sua própria lógica de negócios e permissões.
 
-✨ Features
+# ✨ Features
 ✅ Gerenciamento de Identidade: Registro de usuário e recuperação de perfil.
 
 ✅ Fluxo de Tokens (JWT): Login com access_token e refresh_token (com rotação).
@@ -46,7 +47,7 @@ Este design oferece flexibilidade total, permitindo que qualquer sistema utilize
 
 ✅ Async: Totalmente assíncrono (FastAPI, SQLAlchemy 2.0, AsyncPG).
 
-🚀 Começando
+# 🚀 Começando
 📋 Pré-requisitos
 Python 3.10+
 
@@ -69,46 +70,36 @@ Crie e ative um ambiente virtual:
 
 Bash
 
-python -m venv venv
+```python -m venv venv
 source venv/bin/activate   # (Linux/macOS)
-.\venv\Scripts\activate    # (Windows)
+.\venv\Scripts\activate    # (Windows)```
+
+
 Instale as dependências:
 
-Bash
 
-pip install -r requirements.txt
+```pip install -r requirements.txt```
+
 2. Configuração
 Crie um banco de dados PostgreSQL (ex: auth_db).
 
 Crie um arquivo .env na raiz do projeto e adicione as seguintes variáveis (você pode usar o .env do repositório como base):
 
-Ini, TOML
+*String de conexão (use asyncpg)* = DATABASE_URL="postgresql+asyncpg://USUARIO:SENHA@localhost:5432/auth_db"
 
-# String de conexão (use asyncpg)
-DATABASE_URL="postgresql+asyncpg://USUARIO:SENHA@localhost:5432/auth_db"
+*Chaves Secretas (use 'openssl rand -hex 32' para gerar)* =SECRET_KEY="SUA_CHAVE_SECRETA_FORTE_AQUI", REFRESH_SECRET_KEY="UMA_CHAVE_SECRETA_DIFERENTE_E_FORTE_AQUI", ALGORITHM="HS256"
 
-# Chaves Secretas (use 'openssl rand -hex 32' para gerar)
-SECRET_KEY="SUA_CHAVE_SECRETA_FORTE_AQUI"
-REFRESH_SECRET_KEY="UMA_CHAVE_SECRETA_DIFERENTE_E_FORTE_AQUI"
-ALGORITHM="HS256"
+*Chave da API de Gerenciamento (use 'openssl rand -hex 64')* = INTERNAL_API_KEY="sk_live_UMA_CHAVE_SECRETA_MUITO_FORTE_PARA_SISTEMAS"
 
-# Chave da API de Gerenciamento (use 'openssl rand -hex 64')
-INTERNAL_API_KEY="sk_live_UMA_CHAVE_SECRETA_MUITO_FORTE_PARA_SISTEMAS"
+*Configurações de Email (SendGrid)* = SENDGRID_API_KEY="SG.SUA_CHAVE_API_SENDGRID_AQUI", EMAIL_FROM="seu_email_verificado@sendgrid.com", EMAIL_FROM_NAME="Auth API"
 
-# Configurações de Email (SendGrid)
-SENDGRID_API_KEY="SG.SUA_CHAVE_API_SENDGRID_AQUI"
-EMAIL_FROM="seu_email_verificado@sendgrid.com"
-EMAIL_FROM_NAME="Auth API"
+*URLs do SEU Frontend* = VERIFICATION_URL_BASE="http://localhost:3000/verify-email", ESET_PASSWORD_URL_BASE="http://localhost:3000/reset-password"
 
-# URLs do SEU Frontend
-VERIFICATION_URL_BASE="http://localhost:3000/verify-email"
-RESET_PASSWORD_URL_BASE="http://localhost:3000/reset-password"
+*Configurações de Segurança (Account Lockout)* = LOGIN_MAX_FAILED_ATTEMPTS=5, LOGIN_LOCKOUT_MINUTES=15
 
-# Configurações de Segurança (Account Lockout)
-LOGIN_MAX_FAILED_ATTEMPTS=5
-LOGIN_LOCKOUT_MINUTES=15
-3. Migrar o Banco de Dados (Alembic)
-Este projeto usa Alembic para gerenciar o schema do banco de dados. Não é mais necessário usar scripts destrutivos.
+
+# 3. Migrar o Banco de Dados (Alembic)
+Este projeto usa Alembic para gerenciar o schema do banco de dados.
 
 Para criar todas as tabelas pela primeira vez (ou aplicar novas migrações), rode:
 
@@ -216,7 +207,9 @@ Você nunca mais precisará consultar o banco de dados para saber as permissões
 A API é dividida em três seções principais. Para detalhes completos dos endpoints e schemas, veja a documentação interativa em /docs.
 
 1. 🔑 Authentication (/api/v1/auth)
-Descrição: Endpoints públicos para o ciclo de vida da autenticação. Endpoints Chave:
+Descrição: Endpoints públicos para o ciclo de vida da autenticação.
+
+Endpoints Chave:
 
 POST /token: Login para obter tokens JWT (pode receber scope).
 
@@ -233,7 +226,9 @@ POST /reset-password: Definir uma nova senha com um token.
 GET /me: Obter os dados do usuário logado (requer token).
 
 2. 👤 User Management (/api/v1/users)
-Descrição: Endpoints para gerenciamento de usuários. Endpoints Chave:
+Descrição: Endpoints para gerenciamento de usuários.
+
+Endpoints Chave:
 
 POST /: Registrar um novo usuário (envia email de verificação).
 
@@ -244,7 +239,11 @@ GET /{user_id}: Buscar um usuário por ID (Protegido, requer role 'admin').
 PUT /me: Atualizar os dados do próprio usuário logado.
 
 3. ⚙️ Internal Management (/api/v1/mgmt)
-Descrição: Endpoints privados para gerenciamento sistema-para-sistema. Proteção: Requer o INTERNAL_API_KEY no header X-API-Key. Endpoints Chave:
+Descrição: Endpoints privados para gerenciamento sistema-para-sistema.
+
+Proteção: Requer o INTERNAL_API_KEY no header X-API-Key.
+
+Endpoints Chave:
 
 PATCH /users/{id_ou_email}/claims: Mescla (Atualiza) os custom_claims de um usuário (preferencial).
 
