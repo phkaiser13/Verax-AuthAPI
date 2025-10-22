@@ -1,10 +1,9 @@
-Auth API - Serviço de Identidade Agnóstico
-Uma API de autenticação centralizada, agnóstica e pronta para produção, construída com FastAPI e PostgreSQL.
+<p align="center"> <strong>Um serviço de identidade agnóstico, seguro e flexível.</strong> <br /> Construído com FastAPI e PostgreSQL para servir como um provedor de identidade (IdP) centralizado para qualquer aplicação. </p>
 
-Projetada para servir como um provedor de identidade (IdP) para múltiplos sistemas, permitindo que cada aplicação defina suas próprias regras de autorização (roles, permissões) sem que este serviço central precise entendê-las.
+<p align="center"> <a href="https://github.com/SEU_USUARIO/SEU_REPOSITORIO/actions"> <img src="https://img.shields.io/github/actions/workflow/status/SEU_USUARIO/SEU_REPOSITORIO/main.yml?branch=main&style=for-the-badge" alt="Status do Build"> </a> <a href="https://github.com/SEU_USUARIO/SEU_REPOSITORIO/blob/main/LICENSE"> <img src="https://img.shields.io/github/license/SEU_USUARIO/SEU_REPOSITORIO?style=for-the-badge&color=blue" alt="Licença"> </a> <img src="https://img.shields.io/badge/Python-3.10%2B-blue?style=for-the-badge&logo=python" alt="Python 3.10+"> <img src="https://img.shields.io/badge/FastAPI-0.119.1-05998b?style=for-the-badge&logo=fastapi" alt="FastAPI"> </p>
 
-Conceito Central: Autenticação vs. Autorização
-Esta API separa de forma rigorosa a Autenticação (provar quem você é) da Autorização (definir o que você pode fazer).
+💡 Conceito Central: Autenticação vs. Autorização
+Esta API foi projetada com uma filosofia fundamental: a rigorosa separação entre Autenticação (provar quem você é) e Autorização (definir o que você pode fazer).
 
 Esta API (Auth API) cuida da Autenticação:
 
@@ -12,7 +11,7 @@ Gerencia com segurança o registro, login e dados do usuário.
 
 Verifica identidades via email, reset de senha e bloqueio de conta.
 
-Fornece um "cofre" de metadados (metadata) para cada usuário.
+Fornece um "cofre" de metadados (metadata) flexível para cada usuário.
 
 Sua Aplicação (ex: VR Sales) cuida da Autorização:
 
@@ -24,32 +23,32 @@ Você solicita esses dados (scopes) durante o login para que sejam injetados no 
 
 Este design oferece flexibilidade total, permitindo que qualquer sistema utilize um serviço de identidade robusto enquanto mantém controle total sobre sua própria lógica de negócios e permissões.
 
-Features
-Gerenciamento de Identidade: Registro de usuário, recuperação de perfil.
+✨ Features
+✅ Gerenciamento de Identidade: Registro de usuário e recuperação de perfil.
 
-Fluxo de Tokens (JWT): Login com access_token e refresh_token.
+✅ Fluxo de Tokens (JWT): Login com access_token e refresh_token.
 
-Segurança de Senha: Hashing de senha forte (Bcrypt).
+✅ Segurança de Senha: Hashing de senha forte (Bcrypt).
 
-Verificação de Email: Fluxo completo de ativação de conta por email.
+✅ Verificação de Email: Fluxo completo de ativação de conta por email.
 
-Recuperação de Senha: Fluxo seguro de "esqueci minha senha".
+✅ Recuperação de Senha: Fluxo seguro de "esqueci minha senha".
 
-Proteção de Login: Rate Limiting (SlowAPI) e Bloqueio de Conta (Account Lockout).
+✅ Proteção de Login: Rate Limiting (SlowAPI) e Bloqueio de Conta (Account Lockout).
 
-Autorização Agnóstica (Claims): Injeta roles, permissions ou qualquer outro dado customizado no JWT.
+✅ Autorização Agnóstica (Claims): Injeta roles, permissions ou qualquer outro dado customizado no JWT.
 
-API de Gerenciamento (Management): Endpoints seguros (sistema-para-sistema) para gerenciar metadados de usuários.
+✅ API de Gerenciamento (Management): Endpoints seguros (sistema-para-sistema) para gerenciar metadados de usuários.
 
-Async: Totalmente assíncrono (FastAPI, SQLAlchemy 2.0, AsyncPG).
+✅ Async: Totalmente assíncrono (FastAPI, SQLAlchemy 2.0, AsyncPG).
 
-Começando
-Pré-requisitos
+🚀 Começando
+📋 Pré-requisitos
 Python 3.10+
 
 PostgreSQL (Servidor rodando)
 
-Um servidor SMTP ou serviço de email (para envio) (ex: Mailtrap.io para desenvolvimento).
+Servidor SMTP ou serviço de email (ex: Mailtrap.io para desenvolvimento).
 
 1. Instalação
 Clone o repositório:
@@ -73,31 +72,41 @@ pip install -r requirements.txt
 2. Configuração
 Crie um banco de dados PostgreSQL (ex: auth_db).
 
-Copie o arquivo de exemplo .env.example para .env:
+Copie o arquivo de exemplo .env.example (se você tiver um) para .env. Se não, crie um arquivo .env e adicione as seguintes variáveis:
 
-Bash
+Ini, TOML
 
-cp .env.example .env
-Edite o arquivo .env com suas configurações:
+# String de conexão (use asyncpg)
+DATABASE_URL="postgresql+asyncpg://USUARIO:SENHA@localhost:5432/auth_db"
 
-DATABASE_URL: A string de conexão do seu banco (use postgresql+asyncpg).
+# Chaves Secretas (use 'openssl rand -hex 32' para gerar)
+SECRET_KEY="SUA_CHAVE_SECRETA_FORTE_AQUI"
+REFRESH_SECRET_KEY="UMA_CHAVE_SECRETA_DIFERENTE_E_FORTE_AQUI"
 
-SECRET_KEY: Chave para assinar Access Tokens (gere com openssl rand -hex 32).
+# Chave da API de Gerenciamento (use 'openssl rand -hex 64')
+INTERNAL_API_KEY="sk_live_UMA_CHAVE_SECRETA_MUITO_FORTE_PARA_SISTEMAS"
 
-REFRESH_SECRET_KEY: Chave para assinar Refresh Tokens (gere outra com openssl rand -hex 32).
+# Configurações de Email (Exemplo com Mailtrap)
+EMAIL_HOST="sandbox.smtp.mailtrap.io"
+EMAIL_PORT=2525
+EMAIL_USERNAME="SEU_USUARIO_MAILTRAP"
+EMAIL_PASSWORD="SUA_SENHA_MAILTRAP"
+EMAIL_FROM="no-reply@suaauthapi.com"
+EMAIL_FROM_NAME="Auth API"
+EMAIL_USE_TLS=true
+EMAIL_USE_SSL=false
 
-INTERNAL_API_KEY: Chave secreta para a API de Gerenciamento (gere com openssl rand -hex 64).
+# URLs do SEU Frontend
+VERIFICATION_URL_BASE="http://localhost:3000/verify-email"
+RESET_PASSWORD_URL_BASE="http://localhost:3000/reset-password"
 
-EMAIL_...: Configure suas credenciais de servidor SMTP (ex: Mailtrap).
-
-VERIFICATION_URL_BASE: A URL do seu frontend para onde o link de verificação de email apontará.
-
-RESET_PASSWORD_URL_BASE: A URL do seu frontend para a página de reset de senha.
-
+# Configurações de Segurança
+LOGIN_MAX_FAILED_ATTEMPTS=5
+LOGIN_LOCKOUT_MINUTES=15
 3. Criar Tabelas do Banco
-Para desenvolvimento, você pode usar o script inicial que cria todas as tabelas.
+Para desenvolvimento, você pode usar o script inicial para criar todas as tabelas.
 
-Atenção: Este script DELETA todas as tabelas existentes antes de criá-las. Não use em produção.
+⚠️ Atenção: Este script DELETA todas as tabelas existentes antes de criá-las. Não use em produção.
 
 Bash
 
@@ -110,13 +119,14 @@ Use o Uvicorn para rodar a aplicação:
 Bash
 
 # O --reload monitora mudanças nos arquivos (ótimo para dev)
+# Rodando na porta 8001 como solicitado
 uvicorn main:app --host 0.0.0.0 --port 8001 --reload
-A API estará disponível em http://localhost:8001. A documentação interativa (Swagger UI) estará em http://localhost:8001/docs.
+A API estará disponível em http://localhost:8001 🚀. A documentação interativa (Swagger UI) estará em http://localhost:8001/docs.
 
-Fluxo de Integração (Tutorial)
+🛠️ Fluxo de Integração (Tutorial)
 Este é o guia passo-a-passo de como um desenvolvedor deve integrar esta Auth API em seu sistema (ex: um E-commerce).
 
-Passo 1: Registrar o Usuário (Frontend/Backend)
+Passo 1: ✍️ Registrar o Usuário (Frontend/Backend)
 O usuário se registra no seu sistema. Seu backend faz uma chamada para a Auth API.
 
 POST /api/v1/users/
@@ -136,14 +146,14 @@ Resultado: O usuário é criado com is_active: false e is_verified: false.
 
 Um email de verificação é enviado para o usuário.
 
-Passo 2: Ativar o Usuário (Usuário)
+Passo 2: 📧 Ativar o Usuário (Usuário)
 O usuário clica no link em seu email. O link aponta para o seu frontend (VERIFICATION_URL_BASE), que extrai o token e chama a Auth API:
 
 GET /api/v1/auth/verify-email/{token}
 
 Resultado: O usuário é atualizado para is_active: true e is_verified: true. A conta agora está pronta para login.
 
-Passo 3: Definir Roles e Permissões (Backend-para-Backend)
+Passo 3: 🔑 Definir Roles e Permissões (Backend-para-Backend)
 Esta é a mágica. O backend do seu sistema (E-commerce) decide quais permissões esse novo usuário tem. Ele usa a API de Gerenciamento (/mgmt) para salvar esses dados.
 
 PATCH /api/v1/mgmt/users/novo_usuario@meusistema.com/metadata
@@ -153,7 +163,7 @@ Bash
 curl -X 'PATCH' \
   'http://localhost:8001/api/v1/mgmt/users/novo_usuario@meusistema.com/metadata' \
   -H 'accept: application/json' \
-  -H 'X-API-Key: sk_live_UMA_CHAVE_SECRETA_MUITO_FORTE...' \ # <--- Chave secreta!
+  -H 'X-API-Key: sk_live_UMA_CHAVE_SECRETA_MUITO_FORTE...' \ # <--- Sua chave secreta!
   -H 'Content-Type: application/json' \
   -d '{
   "roles": ["user", "beta_tester"],
@@ -162,7 +172,7 @@ curl -X 'PATCH' \
 }'
 Resultado: A Auth API armazena este JSON no campo metadata do usuário, sem entender o que roles ou ecommerce_user_id significam.
 
-Passo 4: Login com Scopes (Frontend)
+Passo 4: 🎟️ Login com Scopes (Frontend)
 Quando o usuário faz login no seu frontend, você pede os "scopes" (claims) que sua aplicação precisa.
 
 POST /api/v1/auth/token
@@ -177,7 +187,7 @@ curl -X 'POST' \
   -d 'username=novo_usuario@meusistema.com&password=Password123!&scope=roles+permissions'
 Parâmetro scope: Nós pedimos roles e permissions. A API irá buscar esses campos no metadata do usuário e injetá-los no JWT.
 
-Passo 5: Usar o JWT (Frontend/Backend)
+Passo 5: 🛡️ Usar o JWT (Frontend/Backend)
 Seu frontend recebe o access_token. O payload desse token (decodificado) será:
 
 JSON
@@ -201,10 +211,10 @@ Olhar os claims (ex: token_data["roles"]) e aplicar sua própria lógica de auto
 
 Você nunca mais precisará consultar o banco de dados para saber as permissões de um usuário a cada requisição.
 
-Referência da API
+📚 Referência da API
 A API é dividida em três seções principais. Para detalhes completos dos endpoints e schemas, veja a documentação interativa em /docs.
 
-1. Authentication (/api/v1/auth)
+1. 🔑 Authentication (/api/v1/auth)
 Descrição: Endpoints públicos para o ciclo de vida da autenticação.
 
 Endpoints Chave:
@@ -223,7 +233,7 @@ POST /reset-password: Definir uma nova senha com um token.
 
 GET /me: Obter os dados do usuário logado (requer token).
 
-2. User Management (/api/v1/users)
+2. 👤 User Management (/api/v1/users)
 Descrição: Endpoints públicos para gerenciamento de usuários.
 
 Endpoints Chave:
@@ -234,7 +244,7 @@ GET /: Listar usuários (pode requerer proteção de admin).
 
 PUT /me: Atualizar os dados do próprio usuário logado.
 
-3. Internal Management (/api/v1/mgmt)
+3. ⚙️ Internal Management (/api/v1/mgmt)
 Descrição: Endpoints privados para gerenciamento sistema-para-sistema.
 
 Proteção: Requer o INTERNAL_API_KEY no header X-API-Key.
@@ -245,25 +255,18 @@ PUT /users/{id_ou_email}/metadata: Sobrescreve todo o metadata de um usuário.
 
 PATCH /users/{id_ou_email}/metadata: Mescla (Atualiza) o metadata de um usuário (preferencial).
 
-Roadmap e Próximos Passos
-Este projeto é uma base sólida. Para torná-lo um serviço de nível mundial, os próximos passos incluem:
+🤝 Contribuição
+Contribuições são muito bem-vindas! Sinta-se à vontade para abrir uma issue ou enviar um pull request.
 
-Migrações de Banco (Alembic): Substituir o script initial_data.py por um sistema de migração robusto.
+Faça um Fork do projeto.
 
-Filas de Tarefas (Celery & Redis): Mover o envio de emails do BackgroundTasks para o Celery, garantindo a entrega.
+Crie sua Feature Branch (git checkout -b feature/MinhaFeatureIncrivel).
 
-Testes Automatizados (Pytest): Criar um conjunto completo de testes de unidade e integração.
+Faça o Commit de suas mudanças (git commit -m 'feat: Adiciona MinhaFeatureIncrivel').
 
-Autenticação Multifator (MFA/2FA): Permitir que usuários protejam suas contas com apps (ex: Google Authenticator).
+Faça o Push para a Branch (git push origin feature/MinhaFeatureIncrivel).
 
-Login Social (OAuth2): Permitir login com Google, GitHub, etc.
+Abra um Pull Request.
 
-Verificação de Senha Vazada: Integrar com o "Have I Been Pwned" para bloquear senhas comprometidas no registro.
-
-Logs de Auditoria: Registrar eventos de segurança importantes.
-
-Contribuição
-Contribuições são bem-vindas! Sinta-se à vontade para abrir uma issue ou enviar um pull request.
-
-Licença
+📜 Licença
 Este projeto está licenciado sob a Licença MIT. Veja o arquivo LICENSE para mais detalhes.
