@@ -1,7 +1,9 @@
 from typing import Any, List
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
-from app.api.dependencies import get_current_active_user
+# --- IMPORTAR A NOVA DEPENDÊNCIA DE ADMIN ---
+from app.api.dependencies import get_current_active_user, get_current_admin_user
+# --- FIM IMPORTAÇÃO ---
 from app.crud.crud_user import user as crud_user
 from app.db.session import get_db
 from app.schemas.user import User as UserSchema, UserCreate, UserUpdate
@@ -12,21 +14,16 @@ from fastapi import BackgroundTasks # Importar BackgroundTasks
 
 router = APIRouter()
 
-# Opcional: Proteger endpoints de usuário (ex: só admins podem criar/listar)
-# Você precisaria adicionar um campo 'is_superuser' ao modelo e schema User
-# e criar uma dependência RoleChecker como no VR Sales.
-# Por simplicidade inicial, vamos deixar aberto ou usar apenas a autenticação básica.
-
 @router.post("/", response_model=UserSchema, status_code=status.HTTP_201_CREATED)
 async def create_user(
     *,
     db: AsyncSession = Depends(get_db),
     user_in: UserCreate,
     background_tasks: BackgroundTasks # Adicionar BackgroundTasks
-    # current_user: UserModel = Depends(get_current_active_user) # Descomente se proteger
 ) -> Any:
     """
     Cria um novo usuário (registro) e envia email de verificação.
+    (Este endpoint permanece público, sem autenticação)
     """
     user = await crud_user.get_by_email(db, email=user_in.email)
     if user:
@@ -53,10 +50,13 @@ async def read_users(
     db: AsyncSession = Depends(get_db),
     skip: int = 0,
     limit: int = 100,
-    # current_user: UserModel = Depends(get_current_active_user) # Descomente se proteger
+    # --- ADICIONAR PROTEÇÃO DE ADMIN ---
+    admin_user: UserModel = Depends(get_current_admin_user)
+    # --- FIM PROTEÇÃO ---
 ) -> Any:
     """
-    Retorna uma lista de usuários. (Idealmente protegido para admins)
+    Retorna uma lista de usuários.
+    (Protegido: Somente usuários com a role 'admin' podem acessar)
     """
     users = await crud_user.get_multi(db, skip=skip, limit=limit)
     return users
@@ -65,15 +65,21 @@ async def read_users(
 async def read_user_by_id(
     user_id: int,
     db: AsyncSession = Depends(get_db),
-    # current_user: UserModel = Depends(get_current_active_user) # Descomente se proteger
+    # --- ADICIONAR PROTEÇÃO DE ADMIN ---
+    admin_user: UserModel = Depends(get_current_admin_user)
+    # --- FIM PROTEÇÃO ---
 ) -> Any:
     """
     Busca um usuário pelo ID.
+    (Protegido: Somente usuários com a role 'admin' podem acessar)
     """
     user = await crud_user.get(db, id=user_id)
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
-    # Adicionar verificação se o usuário logado pode ver este usuário
+    
+    # Futuramente, você poderia adicionar uma lógica aqui:
+    # if admin_user.id == user.id or admin_user.is_admin: ...
+    # Mas por enquanto, apenas admins podem ver outros usuários.
     return user
 
 @router.put("/me", response_model=UserSchema)
@@ -85,6 +91,7 @@ async def update_user_me(
 ) -> Any:
     """
     Atualiza os dados do próprio usuário logado.
+    (Este endpoint permanece como estava, requer apenas usuário ativo)
     """
     user = await crud_user.update(db, db_obj=current_user, obj_in=user_in)
     return user

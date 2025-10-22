@@ -50,7 +50,33 @@ async def get_current_active_user(
         raise HTTPException(status_code=400, detail="Inactive user")
     return current_user
 
-# You might add RoleChecker here later if needed
+# --- NOVA DEPENDÊNCIA DE ADMIN (RBAC) ---
+async def get_current_admin_user(
+    current_user: UserModel = Depends(get_current_active_user),
+) -> UserModel:
+    """
+    Dependência que verifica se o usuário ativo possui a role 'admin'
+    em seus custom_claims.
+    """
+    forbidden_exception = HTTPException(
+        status_code=status.HTTP_403_FORBIDDEN,
+        detail="Não autorizado. Requer privilégios de administrador.",
+    )
+
+    if not current_user.custom_claims:
+        # Se custom_claims for None ou {}
+        raise forbidden_exception
+
+    roles = current_user.custom_claims.get("roles")
+    
+    if not roles or not isinstance(roles, list) or "admin" not in roles:
+        # Se 'roles' não existir,
+        # ou não for uma lista,
+        # ou 'admin' não estiver na lista
+        raise forbidden_exception
+        
+    return current_user
+# --- FIM NOVA DEPENDÊNCIA ---
 
 
 # --- DEPENDÊNCIA DA CHAVE DE API (X-API-Key) ---
