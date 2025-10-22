@@ -1,7 +1,7 @@
 # auth_api/app/crud/crud_user.py
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
-from typing import Optional
+from typing import Optional, Dict, Any # Importar Dict, Any
 import hashlib
 import secrets
 from app.crud.base import CRUDBase
@@ -16,6 +16,7 @@ from app.core.config import settings # Importar settings
 from loguru import logger # Adicionar logger
 # --- Importar exceção customizada ---
 from app.core.exceptions import AccountLockedException 
+from sqlalchemy.orm.attributes import flag_modified # Importar para merge de JSON
 
 
 class CRUDUser(CRUDBase[User, UserCreate, UserUpdate]):
@@ -26,7 +27,7 @@ class CRUDUser(CRUDBase[User, UserCreate, UserUpdate]):
 
     # Sobrescreve o create para hashear a senha
     async def create(self, db: AsyncSession, *, obj_in: UserCreate) -> tuple[User, str]: # Retorna usuário e token
-        # ... (lógica de create permanece igual) ...
+        # ... (lógica de create) ...
         verification_token = secrets.token_urlsafe(32)
         token_hash = hashlib.sha256(verification_token.encode('utf-8')).hexdigest()
         expires_delta = timedelta(minutes=settings.EMAIL_VERIFICATION_TOKEN_EXPIRE_MINUTES)
@@ -39,7 +40,8 @@ class CRUDUser(CRUDBase[User, UserCreate, UserUpdate]):
             is_active=False,
             is_verified=False,
             verification_token_hash=token_hash,
-            verification_token_expires=expires_at.replace(tzinfo=None)
+            verification_token_expires=expires_at.replace(tzinfo=None),
+            custom_claims={} # CORREÇÃO: Inicia custom_claims como um dict vazio
         )
         db.add(db_obj)
         await db.commit()
@@ -71,7 +73,7 @@ class CRUDUser(CRUDBase[User, UserCreate, UserUpdate]):
             return user
         return None
 
-    # --- LÓGICA DE AUTENTICAÇÃO CORRIGIDA ---
+    # --- LÓGICA DE AUTENTICAÇÃO (EXISTENTE) ---
     async def authenticate(
         self, db: AsyncSession, *, email: str, password: str
     ) -> Optional[User]:
@@ -91,8 +93,6 @@ class CRUDUser(CRUDBase[User, UserCreate, UserUpdate]):
             )
             
         # --- 2. VERIFICAR SENHA (MOVIDO PARA CIMA) ---
-        # Verificamos a senha ANTES de verificar se está ativo.
-        # Isso garante que ataques de força bruta em contas inativas também sejam bloqueados.
         if not verify_password(password, user.hashed_password):
             # --- LÓGICA DE FALHA: Incrementar contador e bloquear se necessário ---
             user.failed_login_attempts += 1
@@ -108,12 +108,9 @@ class CRUDUser(CRUDBase[User, UserCreate, UserUpdate]):
             return None # Senha incorreta
             
         # --- 3. VERIFICAR SE ESTÁ ATIVO E VERIFICADO (MOVIDO PARA BAIXO) ---
-        # Se chegamos aqui, a senha estava CORRETA.
-        # Agora verificamos se a conta está pronta para uso.
         if not user.is_active or not user.is_verified:
             logger.warning(f"Tentativa de login (senha correta) falhou para email não ativo/verificado: {email}")
-            # Não incrementamos o contador de falhas, pois a senha está correta.
-            return None # O endpoint /token retornará a msg "Conta inativa..."
+            return None 
         
         # --- 4. SUCESSO: Resetar contador de falhas ---
         if user.failed_login_attempts > 0 or user.locked_until:
@@ -123,7 +120,29 @@ class CRUDUser(CRUDBase[User, UserCreate, UserUpdate]):
             await db.commit() # Commit do reset
             
         return user
-    # --- FIM DA LÓGICA CORRIGIDA ---
+    # --- FIM DA LÓGICA DE AUTENTICAÇÃO ---
+
+    # --- NOVO MÉTODO PARA CUSTOM_CLAIMS ---
+    async def update_custom_claims(
+        self, db: AsyncSession, *, user: User, claims: Dict[str, Any]
+    ) -> User:
+        """
+        Mescla (patch) os claims customizados do usuário.
+        Novos valores nos 'claims' de entrada sobrescrevem os antigos.
+        """
+        if user.custom_claims:
+            # Mescla os dicionários
+            user.custom_claims.update(claims)
+            # Sinaliza ao SQLAlchemy que o campo JSONB foi modificado
+            flag_modified(user, "custom_claims")
+        else:
+            user.custom_claims = claims
+        
+        db.add(user)
+        await db.commit()
+        await db.refresh(user)
+        return user
+    # --- FIM NOVO MÉTODO ---
 
     async def generate_password_reset_token(
             self, db: AsyncSession, *, user: User
@@ -171,6 +190,7 @@ class CRUDUser(CRUDBase[User, UserCreate, UserUpdate]):
         user.reset_password_token_hash = None
         user.reset_password_token_expires = None
         
+        # Limpa o lockout (EXISTENTE)
         user.failed_login_attempts = 0
         user.locked_until = None
         user.is_active = True

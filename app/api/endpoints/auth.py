@@ -1,3 +1,4 @@
+# auth_api/app/api/endpoints/auth.py
 from loguru import logger
 from datetime import datetime, timedelta, timezone # Importar datetime, timezone
 from typing import Any
@@ -25,20 +26,26 @@ from app.core.exceptions import AccountLockedException
 
 router = APIRouter()
 
-# --- REMOVE get_current_user_from_token and get_current_active_user from here ---
-# They are now correctly placed in dependencies.py
+# ... (get_current_user_from_token e get_current_active_user removidos daqui) ...
 
 @router.post("/token", response_model=Token)
 async def login_for_access_token(
     db: AsyncSession = Depends(get_db),
     form_data: OAuth2PasswordRequestForm = Depends(),
 ) -> Any:
+    """
+    Login para obter Access e Refresh tokens.
+    
+    Opcionalmente, pode receber 'scope' no form-data (ex: "roles permissions")
+    para injetar claims no Access Token.
+    """
     try:
+        # Lógica de autenticação (EXISTENTE)
         user = await crud_user.authenticate(
             db, email=form_data.username, password=form_data.password
         )
     except AccountLockedException as e:
-        # Captura a exceção de conta bloqueada
+        # Captura a exceção de conta bloqueada (EXISTENTE)
         detail_msg = "Account locked due to too many failed login attempts."
         if e.locked_until:
             now = datetime.now(timezone.utc).replace(tzinfo=None)
@@ -53,30 +60,41 @@ async def login_for_access_token(
             detail=detail_msg
         )
         
-    # A verificação de is_verified e is_active agora está dentro do authenticate
+    # Verificação de usuário ativo/verificado (EXISTENTE)
     if not user:
-        # Se authenticate retornou None por email/senha errados OU por não estar ativo/verificado
         user_check = await crud_user.get_by_email(db, email=form_data.username)
-        
-        # Não checamos mais por 'locked_until' aqui, pois a exceção já tratou disso.
         
         if user_check and (not user_check.is_active or not user_check.is_verified):
              raise HTTPException(
                  status_code=status.HTTP_400_BAD_REQUEST,
                  detail="Conta inativa ou e-mail não verificado. Verifique seu e-mail."
              )
-        # Se não achou o usuário ou a senha está errada
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Incorrect email or password"
         )
+    
     # Se passou, o usuário é válido, ativo e verificado
-    # ... (código para gerar tokens permanece igual) ...
-    access_token = security.create_access_token(data={"sub": str(user.id)})
+    
+    # --- NOVO: LER SCOPES DO FORMULÁRIO ---
+    # form_data.scopes é uma lista de strings (ex: ["roles", "permissions"])
+    requested_scopes = form_data.scopes
+    # --- FIM LEITURA SCOPES ---
+
+    # --- MODIFICADO: GERAR TOKSENS (PASSANDO SCOPES) ---
+    access_token = security.create_access_token(
+        data={"sub": str(user.id)},
+        user_claims=user.custom_claims, # CORREÇÃO: Passa os claims customizados
+        requested_scopes=requested_scopes # Passa os scopes solicitados
+    )
+    
     refresh_token_str, expires_at = security.create_refresh_token(data={"sub": str(user.id)})
+    
     await crud_refresh_token.create_refresh_token(
         db, user=user, token=refresh_token_str, expires_at=expires_at
     )
+    # --- FIM GERAÇÃO TOKENS ---
+
     return {
         "access_token": access_token,
         "refresh_token": refresh_token_str,
@@ -101,7 +119,7 @@ async def refresh_access_token(
         headers={"WWW-Authenticate": "Bearer"},
     )
 
-    # 1. Decodifica o payload (verifica assinatura e expiração básica)
+    # 1. Decodifica o payload
     payload = security.decode_refresh_token(refresh_token_str)
     if payload is None:
         raise credentials_exception
@@ -114,23 +132,23 @@ async def refresh_access_token(
     except ValueError:
         raise credentials_exception
 
-    # 2. Verifica se o token existe no banco, não está revogado e não expirou
+    # 2. Verifica se o token existe no banco
     db_refresh_token = await crud_refresh_token.get_refresh_token(db, token=refresh_token_str)
     if not db_refresh_token or db_refresh_token.user_id != user_id:
-        # Se não achou no DB (ou pertence a outro user), o token é inválido/revogado/expirado
-        # Logar tentativa de uso de token inválido pode ser útil aqui
         raise credentials_exception
 
-    # 3. (Opcional, mas recomendado: Rotação de Refresh Token)
-    # Revoga o token atual para que não possa ser reutilizado
+    # 3. Rotação de Refresh Token
     await crud_refresh_token.revoke_refresh_token(db, token=refresh_token_str)
 
-    # Busca o usuário para gerar novos tokens
+    # Busca o usuário
     user = await crud_user.get(db, id=user_id)
     if not user or not user.is_active:
-        raise credentials_exception # Usuário pode ter sido desativado
+        raise credentials_exception 
 
     # 4. Gera um NOVO Access Token
+    # IMPORTANTE: O refresh NÃO re-injeta scopes.
+    # O Access Token gerado aqui não conterá claims customizados.
+    # Se o cliente precisar de claims atualizados, ele deve fazer o login (fluxo /token).
     new_access_token = security.create_access_token(data={"sub": str(user.id)})
 
     # 5. Gera um NOVO Refresh Token (para rotação)
@@ -151,7 +169,7 @@ async def refresh_access_token(
 async def verify_email(
     *,
     db: AsyncSession = Depends(get_db),
-    token: str = Path(...) # Pega o token da URL
+    token: str = Path(...) 
 ):
     """
     Verifica o email do usuário usando o token recebido.
@@ -163,30 +181,25 @@ async def verify_email(
             detail="Token de verificação inválido ou expirado",
         )
     logger.info(f"Email verificado com sucesso para usuário ID: {user.id}")
-    # Opcional: Redirecionar para uma página de sucesso no frontend
-    # from fastapi.responses import RedirectResponse
-    # return RedirectResponse(url="/login?verified=true")
-    return user # Retorna os dados do usuário verificado
+    return user 
 
 @router.post("/logout", status_code=status.HTTP_204_NO_CONTENT)
 async def logout(
     *,
     db: AsyncSession = Depends(get_db),
-    refresh_request: RefreshTokenRequest # Requer o refresh token para revogá-lo
-    # Ou poderia pegar o token do cabeçalho se fosse mais complexo
+    refresh_request: RefreshTokenRequest
 ):
     """
     Revoga o Refresh Token fornecido.
     """
     success = await crud_refresh_token.revoke_refresh_token(db, token=refresh_request.refresh_token)
     if not success:
-        # Não levanta erro, mas poderia logar se o token já era inválido
         pass
-    return None # Retorna 204 No Content
+    return None 
 
 @router.get("/me", response_model=UserSchema)
 async def read_users_me(
-    current_user: UserModel = Depends(get_current_active_user), # Use dependency directly
+    current_user: UserModel = Depends(get_current_active_user),
 ) -> Any:
     """
     Retorna os dados do usuário logado (validando o token).
@@ -206,14 +219,10 @@ async def forgot_password(
     """
     user = await crud_user.get_by_email(db, email=request_body.email)
     
-    # IMPORTANTE: Por segurança, NÃO retorne 404 se o usuário não existir.
-    # Sempre retorne 202 para evitar que atacantes descubram emails cadastrados.
     if user and user.is_active:
-        # Usuário existe e está ativo, gerar token e enviar email
         try:
             db_user, reset_token = await crud_user.generate_password_reset_token(db, user=user)
             
-            # Adiciona o envio do email na fila em background
             background_tasks.add_task(
                 send_password_reset_email,
                 email_to=db_user.email,
@@ -222,12 +231,9 @@ async def forgot_password(
             logger.info(f"Solicitação de reset de senha para: {user.email}")
             
         except Exception as e:
-            # Se falhar ao gerar token ou enviar email, loga o erro mas não vaza a informação
             logger.error(f"Erro no fluxo /forgot-password para {request_body.email}: {e}")
-            # Ainda retorna 202
             
     else:
-        # Usuário não encontrado ou inativo, loga e retorna 202
         logger.warning(f"Tentativa de /forgot-password para email não existente ou inativo: {request_body.email}")
 
     return {"msg": "Se um usuário com esse email existir e estiver ativo, um link de redefinição será enviado."}
@@ -245,7 +251,7 @@ async def reset_password(
     token = request_body.token
     new_password = request_body.new_password
     
-    # 1. Decodifica o token JWT (verifica assinatura, expiração)
+    # 1. Decodifica o token JWT
     payload = security.decode_password_reset_token(token)
     if not payload or not payload.get("sub"):
         raise HTTPException(
@@ -255,7 +261,7 @@ async def reset_password(
     
     email = payload["sub"]
     
-    # 2. Busca o usuário pelo token HASH no banco (garante que não foi usado)
+    # 2. Busca o usuário pelo token HASH no banco
     user = await crud_user.get_user_by_reset_token(db, token=token)
     
     if not user or user.email != email:
@@ -266,18 +272,17 @@ async def reset_password(
         
     # 3. Usuário e token são válidos. Atualiza a senha.
     try:
+        # A função reset_password já limpa o lockout
         updated_user = await crud_user.reset_password(
             db, user=user, new_password=new_password
         )
         logger.info(f"Senha redefinida com sucesso para o usuário: {user.email}")
         
-        # Opcional: Enviar um email de confirmação "Sua senha foi alterada"
-        
         return updated_user
         
     except Exception as e:
         logger.error(f"Erro ao tentar redefinir a senha para {user.email}: {e}")
-        await db.rollback() # Garante que a transação falhe
+        await db.rollback() 
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Ocorreu um erro ao atualizar sua senha."

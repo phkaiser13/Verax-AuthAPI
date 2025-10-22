@@ -1,5 +1,5 @@
 # auth_api/main.py
-from fastapi import FastAPI, Request # Adicionar Request
+from fastapi import FastAPI, Request, Depends # Adicionar Request E Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse # Adicionar JSONResponse
 
@@ -11,7 +11,10 @@ from slowapi.middleware import SlowAPIMiddleware
 # --- Fim imports slowapi ---
 from app.db.session import dispose_engine # Import the dispose function
 # Importar routers
-from app.api.endpoints import auth, users
+from app.api.endpoints import auth, users, mgmt # Importar mgmt
+# Importar dependência de chave de API
+from app.api.dependencies import get_api_key
+
 
 # Importar modelos para Alembic/Base.metadata
 from app.db.base import Base # noqa
@@ -24,9 +27,8 @@ from app.models import user, refresh_token # noqa Adicionar refresh_token
 # setup_logging() # Configura logging
 
 # --- Configurar o Limiter ---
-# Define um limite padrão (ex: 100 requisições por minuto por IP)
-# Você pode ajustar esses valores
-limiter = Limiter(key_func=get_remote_address, default_limits=["10/minute"]) # Diminuí o limite para facilitar o teste
+# (EXISTENTE)
+limiter = Limiter(key_func=get_remote_address, default_limits=["10/minute"]) 
 # --- Fim configuração Limiter ---
 
 app = FastAPI(
@@ -37,11 +39,11 @@ app = FastAPI(
 
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
-# --- ADICIONAR O MIDDLEWARE AQUI ---
-app.add_middleware(SlowAPIMiddleware) # Garante que cada request seja checada
+# --- ADICIONAR O MIDDLEWARE (EXISTENTE) ---
+app.add_middleware(SlowAPIMiddleware) 
 # --- FIM ADIÇÃO ---
 
-# Configurar CORS (ajuste origins conforme necessário)
+# Configurar CORS (EXISTENTE)
 origins = [
     "http://localhost:5173", # Exemplo: Frontend VR Sales
     "http://localhost:3000", # Exemplo: Outro frontend
@@ -55,16 +57,23 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# app.add_exception_handler(Exception, global_exception_handler) # Adiciona handler global
+# app.add_exception_handler(Exception, global_exception_handler)
 
 # Incluir routers da API
 api_prefix = "/api/v1"
-# --- Aplicar rate limiting aos routers ---
-# Aplica o limite padrão a todos os endpoints destes routers
-# Poderíamos definir limites específicos por endpoint usando @limiter.limit("...") nos endpoints
+
 app.include_router(auth.router, prefix=f"{api_prefix}/auth", tags=["Authentication"])
 app.include_router(users.router, prefix=f"{api_prefix}/users", tags=["Users"])
-# --- Fim aplicação rate limiting ---
+
+# --- NOVO: ADICIONAR ROUTER DE GERENCIAMENTO (PROTEGIDO) ---
+app.include_router(
+    mgmt.router,
+    prefix=f"{api_prefix}/mgmt",
+    tags=["Management"],
+    dependencies=[Depends(get_api_key)] # Protege TODAS as rotas em /mgmt
+)
+# --- FIM ADIÇÃO ---
+
 
 @app.on_event("shutdown")
 async def shutdown_event():

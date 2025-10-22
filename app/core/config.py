@@ -23,7 +23,7 @@ class Settings(BaseSettings):
     # --- Configurações de Email (SendGrid) ---
     SENDGRID_API_KEY: str
     EMAIL_FROM: EmailStr
-    EMAIL_FROM_NAME: str | None = "Verax AuthAPI"
+    EMAIL_FROM_NAME: str | None = "Auth API"
     # --- Fim SendGrid ---
     
     # --- Configurações SMTP (Removidas) ---

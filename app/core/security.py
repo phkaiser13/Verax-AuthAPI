@@ -1,6 +1,6 @@
 # auth_api/app/core/security.py
 from datetime import datetime, timedelta, timezone
-from typing import Any, Dict
+from typing import Any, Dict, Optional # Adicionar Optional
 from passlib.context import CryptContext
 from jose import jwt, JWTError
 from .config import settings # Keep importing settings
@@ -8,16 +8,7 @@ import secrets
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
-# REMOVE the top-level constants that read from settings immediately
-# ACCESS_ALGORITHM = settings.ALGORITHM
-# ACCESS_SECRET_KEY = settings.SECRET_KEY
-# ACCESS_TOKEN_EXPIRE_MINUTES = settings.ACCESS_TOKEN_EXPIRE_MINUTES
-# REFRESH_ALGORITHM = settings.ALGORITHM
-# REFRESH_SECRET_KEY = settings.REFRESH_SECRET_KEY
-# REFRESH_TOKEN_EXPIRE_DAYS = settings.REFRESH_TOKEN_EXPIRE_DAYS
-# RESET_SECRET_KEY = settings.RESET_PASSWORD_SECRET_KEY or settings.SECRET_KEY
-# RESET_ALGORITHM = settings.ALGORITHM
-# RESET_TOKEN_EXPIRE_MINUTES = settings.RESET_PASSWORD_TOKEN_EXPIRE_MINUTES
+# ... (constantes de nível superior removidas) ...
 
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
@@ -32,8 +23,22 @@ def get_password_hash(password: str) -> str:
     return pwd_context.hash(password_bytes)
 
 # --- Funções para Access Token ---
-def create_access_token(data: Dict[str, Any]) -> str:
+def create_access_token(
+    data: Dict[str, Any],
+    user_claims: Optional[Dict[str, Any]] = None, # CORREÇÃO: Renomeado
+    requested_scopes: Optional[list[str]] = None
+) -> str:
     to_encode = data.copy()
+    
+    # --- LÓGICA DE INJEÇÃO DE SCOPE (CLAIMS) ---
+    if user_claims and requested_scopes: # CORREÇÃO: Renomeado
+        for scope in requested_scopes:
+            # Se o scope (ex: "roles") existe nos claims do usuário...
+            if scope in user_claims: # CORREÇÃO: Renomeado
+                # ...adiciona ao payload do token (ex: "roles": ["admin"])
+                to_encode[scope] = user_claims.get(scope) # CORREÇÃO: Renomeado
+    # --- FIM LÓGICA DE INJEÇÃO ---
+
     # Access settings inside the function
     expire = datetime.now(timezone.utc) + timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
     to_encode.update({"exp": expire, "token_type": "access"})

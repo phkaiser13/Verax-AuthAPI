@@ -1,6 +1,6 @@
 # auth_api/app/schemas/user.py
-from pydantic import BaseModel, EmailStr, Field, validator, field_validator # Adicionar field_validator
-from typing import Optional
+from pydantic import BaseModel, EmailStr, Field, validator, field_validator
+from typing import Optional, Dict, Any # Adicionar Dict, Any
 from datetime import datetime
 import re # Importar re para regex
 
@@ -51,6 +51,7 @@ class User(UserBase):
     id: int
     created_at: datetime
     updated_at: datetime
+    custom_claims: Optional[Dict[str, Any]] = None # CORREÇÃO: Renomeado de metadata
 
     class Config:
         from_attributes = True
