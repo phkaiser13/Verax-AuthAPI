@@ -1,6 +1,6 @@
 <p align="center"> <strong>Um serviço de identidade agnóstico, seguro e flexível.</strong> <br /> Construído com FastAPI e PostgreSQL para servir como um provedor de identidade (IdP) centralizado para qualquer aplicação. </p>
 
-<p align="center"> <a href="https://github.com/SEU_USUARIO/SEU_REPOSITORIO/actions"> <img src="https://img.shields.io/github/actions/workflow/status/SEU_USUARIO/SEU_REPOSITORIO/main.yml?branch=main&style=for-the-badge" alt="Status do Build"> </a> <a href="https://github.com/Verax-System/Verax-AuthAPI/blob/master/LICENSE"> <img src="https://img.shields.io/github/license/SEU_USUARIO/SEU_REPOSITORIO?style=for-the-badge&color=blue" alt="Licença"> </a> <img src="https://img.shields.io/badge/Python-3.10%2B-blue?style=for-the-badge&logo=python" alt="Python 3.10+"> <img src="https://img.shields.io/badge/FastAPI-0.119.1-05998b?style=for-the-badge&logo=fastapi" alt="FastAPI"> </p>
+<p align="center"> <a href="https://github.com/SEU_USUARIO/SEU_REPOSITORIO/actions"> <img src="https://img.shields.io/github/actions/workflow/status/SEU_USUARIO/SEU_REPOSITORIO/main.yml?branch=main&style=for-the-badge" alt="Status do Build"> </a> <a href="https://github.com/SEU_USUARIO/SEU_REPOSITORIO/blob/master/LICENSE"> <img src="https://img.shields.io/github/license/SEU_USUARIO/SEU_REPOSITORIO?style=for-the-badge&color=blue" alt="Licença"> </a> <img src="https://img.shields.io/badge/Python-3.10%2B-blue?style=for-the-badge&logo=python" alt="Python 3.10+"> <img src="https://img.shields.io/badge/FastAPI-0.119.1-05998b?style=for-the-badge&logo=fastapi" alt="FastAPI"> </p>
 
 💡 Conceito Central: Autenticação vs. Autorização
 Esta API foi projetada com uma filosofia fundamental: a rigorosa separação entre Autenticação (provar quem você é) e Autorização (definir o que você pode fazer).
@@ -62,8 +62,8 @@ Crie e ative um ambiente virtual:
 Bash
 
 python -m venv venv
-source venv/bin/activate  # (Linux/macOS)
-.\venv\Scripts\activate   # (Windows)
+source venv/bin/activate   # (Linux/macOS)
+.\venv\Scripts\activate    # (Windows)
 Instale as dependências:
 
 Bash
@@ -142,9 +142,7 @@ curl -X 'POST' \
   "password": "Password123!",
   "full_name": "Nome do Usuário"
 }'
-Resultado: O usuário é criado com is_active: false e is_verified: false.
-
-Um email de verificação é enviado para o usuário.
+Resultado: O usuário é criado com is_active: false e is_verified: false. Um email de verificação é enviado para o usuário.
 
 Passo 2: 📧 Ativar o Usuário (Usuário)
 O usuário clica no link em seu email. O link aponta para o seu frontend (VERIFICATION_URL_BASE), que extrai o token e chama a Auth API:
@@ -163,7 +161,7 @@ Bash
 curl -X 'PATCH' \
   'http://localhost:8001/api/v1/mgmt/users/novo_usuario@meusistema.com/metadata' \
   -H 'accept: application/json' \
-  -H 'X-API-Key: sk_live_UMA_CHAVE_SECRETA_MUITO_FORTE...' \ # <--- Sua chave secreta!
+  -H 'X-API-Key: sk_live_UMA_CHAVE_SECRETA_MUITO_FORTE...' \
   -H 'Content-Type: application/json' \
   -d '{
   "roles": ["user", "beta_tester"],
