@@ -1,6 +1,7 @@
 import os
 import time
 import requests
+import pytest
 from dotenv import load_dotenv
 from loguru import logger
 
@@ -48,7 +49,7 @@ def attempt_login(password: str) -> requests.Response:
     except requests.ConnectionError:
         logger.error(f"ERRO DE CONEXÃO: Não foi possível se conectar a {TOKEN_URL}.")
         logger.error("O servidor FastAPI está rodando na porta 8001?")
-        exit()
+        pytest.fail("Connection error")
 
 # --- 2. Fase de Bloqueio ---
 logger.info(f"\n[FASE 1] Forçando o bloqueio com {MAX_ATTEMPTS} tentativas falhas...")
@@ -72,7 +73,7 @@ if response_locked.status_code == 400 and "locked" in response_locked.json().get
     logger.success("SUCESSO! A conta está bloqueada como esperado.")
 else:
     logger.error("FALHA! A conta NÃO foi bloqueada após as tentativas.")
-    exit()
+    pytest.fail("Account not locked after multiple failed attempts.")
 
 # --- 4. Verificação do Desbloqueio ---
 lockout_seconds = LOCKOUT_MINUTES * 60
@@ -99,4 +100,4 @@ if response_unlocked.status_code == 200 and "access_token" in response_unlocked.
 else:
     logger.error(f"FALHA! O login falhou após o tempo de bloqueio.")
     logger.error(f" -> Status: {response_unlocked.status_code}, Resposta: {response_unlocked.json()}")
-    exit()
+    pytest.fail("Login failed after lockout period.")
