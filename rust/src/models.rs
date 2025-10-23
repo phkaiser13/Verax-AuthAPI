@@ -4,7 +4,7 @@ use chrono::{DateTime, Utc};
 
 #[derive(Debug, FromRow, Serialize, Deserialize)]
 pub struct User {
-    pub id: i32,
+    pub id: i64,
     pub email: String,
     pub password: String,
     pub full_name: Option<String>,
@@ -13,6 +13,8 @@ pub struct User {
     pub custom_claims: Option<serde_json::Value>,
     pub created_at: Option<DateTime<Utc>>,
     pub updated_at: Option<DateTime<Utc>>,
+    pub mfa_secret: Option<String>,
+    pub mfa_enabled: Option<bool>,
 }
 
 #[derive(Debug, FromRow, Serialize, Deserialize)]

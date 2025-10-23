@@ -12,6 +12,8 @@ pub mod models;
 pub mod auth;
 pub mod handlers;
 pub mod middleware;
+pub mod mfa;
+pub mod errors;
 
 pub fn app(pool: SqlitePool) -> Router {
     let mgmt_routes = Router::new()
@@ -22,6 +24,8 @@ pub fn app(pool: SqlitePool) -> Router {
         .route("/", get(hello))
         .route("/api/v1/users", post(handlers::register))
         .route("/api/v1/auth/token", post(handlers::login))
+        .route("/api/v1/auth/mfa/verify", post(handlers::mfa_verify))
+        .route("/api/v1/auth/mfa/login", post(handlers::mfa_login))
         .nest("/api/v1/mgmt", mgmt_routes)
         .layer(Extension(pool))
 }
