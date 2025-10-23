@@ -4,7 +4,7 @@ from sqlalchemy.orm import Mapped, mapped_column
 from datetime import datetime
 from typing import Optional
 # Remover importação específica do postgres
-# from sqlalchemy.dialects.postgresql import JSONB 
+# from sqlalchemy.dialects.postgresql import JSONB
 
 from app.db.base import Base
 
@@ -23,15 +23,20 @@ class User(Base):
     # --- Fim Campos Verificação ---
     reset_password_token_hash: Mapped[Optional[str]] = mapped_column(String(255), index=True)
     reset_password_token_expires: Mapped[Optional[datetime]] = mapped_column(DateTime)
-    
+
     # --- Campos: Account Lockout (EXISTENTES) ---
     failed_login_attempts: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     locked_until: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True) # Armazena em UTC naive
     # --- Fim Campos Lockout ---
 
-    # --- CORREÇÃO: Mudar de JSONB para JSON genérico ---
+    # --- Campo Custom Claims (EXISTENTE) ---
     custom_claims: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
-    # --- FIM CORREÇÃO ---
-    
+    # --- Fim Custom Claims ---
+
+    # --- NOVOS CAMPOS: MFA/2FA ---
+    otp_secret: Mapped[Optional[str]] = mapped_column(String(64), nullable=True) # Segredo para apps (Google Auth, Authy)
+    is_mfa_enabled: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False, server_default='false') # Default no DB também
+    # --- FIM NOVOS CAMPOS ---
+
     created_at: Mapped[datetime] = mapped_column(DateTime, default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=func.now(), onupdate=func.now())

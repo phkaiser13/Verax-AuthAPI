@@ -1,8 +1,8 @@
 # auth_api/app/schemas/user.py
 from pydantic import BaseModel, EmailStr, Field, validator, field_validator
-from typing import Optional, Dict, Any # Adicionar Dict, Any
+from typing import Optional, Dict, Any
 from datetime import datetime
-import re # Importar re para regex
+import re
 
 # Função de validação de senha
 def password_strength_validator(password: str) -> str:
@@ -24,9 +24,7 @@ class UserBase(BaseModel):
     is_active: Optional[bool] = True
 
 class UserCreate(UserBase):
-    password: str = Field(..., min_length=8) # min_length ainda útil para feedback inicial
-
-    # Aplica a validação customizada à senha usando Pydantic v2
+    password: str = Field(..., min_length=8)
     @field_validator('password')
     @classmethod
     def validate_password_strength(cls, v: str) -> str:
@@ -38,34 +36,54 @@ class UserUpdate(BaseModel):
     full_name: Optional[str] = None
     password: Optional[str] = Field(None, min_length=8)
     is_active: Optional[bool] = None
-
-    # Aplica a validação customizada à senha também na atualização, se fornecida
     @field_validator('password')
     @classmethod
     def validate_update_password_strength(cls, v: Optional[str]) -> Optional[str]:
-        if v is not None: # Só valida se a senha for fornecida
+        if v is not None:
             return password_strength_validator(v)
-        return v # Retorna None se não for fornecida
+        return v
 
 class User(UserBase):
     id: int
     created_at: datetime
     updated_at: datetime
-    custom_claims: Optional[Dict[str, Any]] = None # CORREÇÃO: Renomeado de metadata
+    custom_claims: Optional[Dict[str, Any]] = None
+    is_mfa_enabled: bool # Adicionado para ver o status
 
     class Config:
         from_attributes = True
 
-        
 class ForgotPasswordRequest(BaseModel):
     email: EmailStr
 
 class ResetPasswordRequest(BaseModel):
     token: str
     new_password: str = Field(..., min_length=8)
-
-    # Reutiliza a validação de força da senha
     @field_validator('new_password')
     @classmethod
     def validate_password_strength(cls, v: str) -> str:
         return password_strength_validator(v)
+
+# --- NOVOS SCHEMAS MFA ---
+
+class MFAEnableResponse(BaseModel):
+    """Resposta ao iniciar a habilitação do MFA."""
+    # otp_secret: str # REMOVIDO por segurança - será guardado temporariamente
+    otp_uri: str    # A URI para gerar o QR Code
+    qr_code_base64: str # A imagem do QR Code em base64 [Image of a QR code]
+
+class MFAConfirmRequest(BaseModel):
+    """Requisição para confirmar a habilitação do MFA."""
+    otp_code: str = Field(..., min_length=6, max_length=6, pattern=r"^\d{6}$")
+    # O segredo não é mais enviado pelo cliente
+
+class MFADisableRequest(BaseModel):
+    """Requisição para desabilitar o MFA."""
+    otp_code: str = Field(..., min_length=6, max_length=6, pattern=r"^\d{6}$")
+
+class MFAVerifyRequest(BaseModel):
+    """Requisição para verificar o código MFA durante o login."""
+    mfa_challenge_token: str # Token temporário recebido na etapa anterior
+    otp_code: str = Field(..., min_length=6, max_length=6, pattern=r"^\d{6}$")
+
+# --- FIM NOVOS SCHEMAS MFA ---

@@ -1,95 +1,95 @@
 # auth_api/app/core/security.py
 from datetime import datetime, timedelta, timezone
-from typing import Any, Dict, Optional # Adicionar Optional
+from typing import Any, Dict, Optional
 from passlib.context import CryptContext
 from jose import jwt, JWTError
-from .config import settings # Keep importing settings
+from .config import settings
 import secrets
-from app.models.user import User as UserModel # Importar o modelo User
+# Import UserModel QUALIFICADO para evitar conflito de nome 'User'
+from app.models.user import User as UserModel
+# --- NOVOS IMPORTS MFA ---
+import pyotp
+import qrcode # type: ignore
+import io
+import base64
+# --- FIM NOVOS IMPORTS ---
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
-# ... (constantes de nível superior removidas) ...
-
-
+# ... (verify_password, get_password_hash) ...
 def verify_password(plain_password: str, hashed_password: str) -> bool:
     try:
+        # Limita o tamanho da senha ANTES de passar para o bcrypt (evita erros > 72 bytes)
         password_bytes = plain_password.encode('utf-8')[:72]
         return pwd_context.verify(password_bytes, hashed_password)
     except Exception:
+        # Consider logging the exception here for debugging potential issues
         return False
 
 def get_password_hash(password: str) -> str:
+    # Limita o tamanho da senha ANTES de passar para o bcrypt
     password_bytes = password.encode('utf-8')[:72]
     return pwd_context.hash(password_bytes)
 
-# --- Funções para Access Token ---
+
+# --- Funções JWT (com Claims OIDC) ---
 def create_access_token(
-    user: UserModel, # Recebe o objeto User completo
-    requested_scopes: Optional[list[str]] = None
+    user: UserModel,
+    requested_scopes: Optional[list[str]] = None,
+    mfa_passed: bool = True # NOVO: Indica se o MFA foi verificado nesta sessão
 ) -> str:
-    
     now = datetime.now(timezone.utc)
     expire = now + timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
-    
-    # --- INÍCIO: Construir Payload com Claims OIDC Padrão ---
     to_encode: Dict[str, Any] = {
-        "iss": settings.JWT_ISSUER,            # Issuer (Quem emitiu)
-        "aud": settings.JWT_AUDIENCE,          # Audience (Para quem)
-        "iat": now,                            # Issued At (Quando foi emitido)
-        "nbf": now,                            # Not Before (Não válido antes de)
-        "exp": expire,                         # Expiration Time (Expiração)
-        "sub": str(user.id),                   # Subject (ID do usuário)
-        "token_type": "access",                # Tipo do token (nosso claim customizado)
-        "email": user.email,                   # Claim OIDC: email
-        "email_verified": user.is_verified,    # Claim OIDC: email_verified
-        # Adicionar 'name' se full_name existir
-        **({"name": user.full_name} if user.full_name else {}) 
+        "iss": settings.JWT_ISSUER,
+        "aud": settings.JWT_AUDIENCE,
+        "iat": now,
+        "nbf": now,
+        "exp": expire,
+        "sub": str(user.id),
+        "token_type": "access",
+        "email": user.email,
+        "email_verified": user.is_verified,
+        # NOVO: Authentication Methods Reference (OIDC claim)
+        # Se MFA está desabilitado OU se MFA está habilitado E foi passado nesta sessão -> ["pwd", "mfa"]
+        # Caso contrário (MFA habilitado mas não passado) -> ["pwd"]
+        "amr": ["pwd", "mfa"] if user.is_mfa_enabled and mfa_passed else ["pwd"],
+        **({"name": user.full_name} if user.full_name else {})
     }
-    # --- FIM: Claims OIDC Padrão ---
-
-    # --- INÍCIO: Injeção de Claims Customizados (scopes) ---
     if user.custom_claims and requested_scopes:
         for scope in requested_scopes:
-            if scope in user.custom_claims:
-                # Evita sobrescrever claims OIDC padrão se houver conflito
-                if scope not in to_encode: 
-                    to_encode[scope] = user.custom_claims.get(scope)
-    # --- FIM: Injeção de Claims Customizados ---
-
+            if scope in user.custom_claims and scope not in to_encode:
+                to_encode[scope] = user.custom_claims.get(scope)
     encoded_jwt = jwt.encode(
-        to_encode, 
-        settings.SECRET_KEY, 
+        to_encode,
+        settings.SECRET_KEY,
         algorithm=settings.ALGORITHM
     )
     return encoded_jwt
 
+# ... (decode_access_token, create_refresh_token, decode_refresh_token) ...
 def decode_access_token(token: str) -> Dict | None:
     try:
-        # --- MODIFICADO: Adicionar validação de Audience ---
         payload = jwt.decode(
             token,
             settings.SECRET_KEY,
             algorithms=[settings.ALGORITHM],
-            audience=settings.JWT_AUDIENCE, # Valida o 'aud' claim
-            options={"verify_iss": True, "verify_aud": True} # Força validação de iss e aud
+            audience=settings.JWT_AUDIENCE,
+            options={"verify_iss": True, "verify_aud": True}
         )
-        # --- FIM MODIFICAÇÃO ---
         return payload
     except JWTError:
         return None
 
-# --- Funções para Refresh Token ---
 def create_refresh_token(data: Dict[str, Any]) -> tuple[str, datetime]:
-    # Refresh tokens geralmente NÃO contêm claims OIDC, apenas o necessário
     to_encode = data.copy()
     expires_delta = timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS)
     expire = datetime.now(timezone.utc) + expires_delta
     to_encode.update({
-        "iss": settings.JWT_ISSUER, # É bom incluir o issuer
-        "exp": expire, 
+        "iss": settings.JWT_ISSUER,
+        "exp": expire,
         "token_type": "refresh"
-    }) 
+    })
     encoded_jwt = jwt.encode(to_encode, settings.REFRESH_SECRET_KEY, algorithm=settings.ALGORITHM)
     return encoded_jwt, expire.replace(tzinfo=None)
 
@@ -99,7 +99,7 @@ def decode_refresh_token(token: str) -> Dict | None:
             token,
             settings.REFRESH_SECRET_KEY,
             algorithms=[settings.ALGORITHM],
-            options={"verify_iss": True, "verify_aud": False} # Verifica issuer, ignora audience
+            options={"verify_iss": True, "verify_aud": False}
         )
         if payload.get("token_type") != "refresh":
              return None
@@ -107,15 +107,14 @@ def decode_refresh_token(token: str) -> Dict | None:
     except JWTError:
         return None
 
-# --- Funções para Reset Token ---
+# ... (create_password_reset_token, decode_password_reset_token) ...
 def create_password_reset_token(email: str) -> tuple[str, datetime]:
-    # Reset tokens também não precisam de claims OIDC
     reset_secret = settings.RESET_PASSWORD_SECRET_KEY or settings.SECRET_KEY
     expires_delta = timedelta(minutes=settings.RESET_PASSWORD_TOKEN_EXPIRE_MINUTES)
     expire = datetime.now(timezone.utc) + expires_delta
     to_encode = {
-        "iss": settings.JWT_ISSUER, # É bom incluir o issuer
-        "aud": settings.JWT_AUDIENCE, # Pode ser útil
+        "iss": settings.JWT_ISSUER,
+        "aud": settings.JWT_AUDIENCE,
         "exp": expire,
         "nbf": datetime.now(timezone.utc),
         "sub": email,
@@ -131,10 +130,66 @@ def decode_password_reset_token(token: str) -> Dict | None:
             token,
             reset_secret,
             algorithms=[settings.ALGORITHM],
-            options={"verify_iss": True, "verify_aud": True} # Verifica issuer e audience
+            options={"verify_iss": True, "verify_aud": True}
         )
         if payload.get("token_type") != "password_reset" or "sub" not in payload:
              return None
         return payload
     except JWTError:
         return None
+
+# --- NOVAS FUNÇÕES MFA/OTP ---
+
+def generate_otp_secret() -> str:
+    """Gera um novo segredo OTP seguro (base32)."""
+    return pyotp.random_base32()
+
+def generate_otp_uri(secret: str, email: str, issuer_name: str) -> str:
+    """
+    Gera uma URI 'otpauth://' que pode ser usada por apps autenticadores.
+    """
+    # Garante que o nome do issuer não tenha caracteres problemáticos para URI
+    safe_issuer_name = issuer_name.replace(":", "")
+    # Usa url_encode=True para garantir que o issuer_name seja codificado corretamente se contiver espaços, etc.
+    return pyotp.totp.TOTP(secret).provisioning_uri(
+        name=email,
+        issuer_name=safe_issuer_name
+    )
+
+def verify_otp_code(secret: str, code: str) -> bool:
+    """
+    Verifica se um código OTP é válido para o segredo fornecido.
+    Permite uma pequena janela de tempo para sincronização.
+    """
+    if not secret: # Adiciona verificação se o segredo é nulo/vazio
+        return False
+    totp = pyotp.TOTP(secret)
+    # Verifica o código atual e o anterior/seguinte (janela de +/- 30s = 1 * 30s)
+    return totp.verify(code, valid_window=1)
+
+def generate_qr_code_base64(otp_uri: str) -> str:
+    """Gera um QR Code a partir da URI OTP e retorna como imagem base64."""
+    # Cria o QR code
+    qr = qrcode.QRCode(
+        version=1,
+        error_correction=qrcode.constants.ERROR_CORRECT_L,
+        box_size=10,
+        border=4,
+    )
+    qr.add_data(otp_uri)
+    qr.make(fit=True)
+
+    # Cria a imagem a partir do QR code
+    img = qr.make_image(fill_color="black", back_color="white")
+
+    # Salva a imagem em memória como PNG
+    buffered = io.BytesIO()
+    img.save(buffered, format="PNG")
+
+    # Converte para base64
+    img_str = base64.b64encode(buffered.getvalue()).decode("utf-8")
+
+    # Retorna no formato Data URI
+    return f"data:image/png;base64,{img_str}"
+
+# --- FIM NOVAS FUNÇÕES ---
