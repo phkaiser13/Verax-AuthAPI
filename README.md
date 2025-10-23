@@ -1,7 +1,22 @@
+
+<p align="center">
+    <a href="https://github.com/SEU_USUARIO/SEU_REPOSITORIO/blob/main/LICENSE" target="_blank">
+        <img src="https://img.shields.io/github/license/SEU_USUARIO/SEU_REPOSITORIO?style=for-the-badge&color=brightgreen" alt="License">
+    </a>
+    <a href="https://github.com/SEU_USUARIO/SEU_REPOSITORIO/stargazers" target="_blank">
+        <img src="https://img.shields.io/github/stars/SEU_USUARIO/SEU_REPOSITORIO?style=for-the-badge&color=blue" alt="Stars">
+    </a>
+    <a href="https://github.com/SEU_USUARIO/SEU_REPOSITORIO/graphs/contributors" target="_blank">
+        <img src="https://img.shields.io/github/contributors/SEU_USUARIO/SEU_REPOSITORIO?style=for-the-badge&color=orange" alt="Contributors">
+    </a>
+</p>
+
 Um serviço de identidade agnóstico, seguro e flexível.
 Construído com FastAPI e PostgreSQL para servir como um provedor de identidade (IdP) centralizado para qualquer aplicação.
 
-<div align="center"> <img src="https://img.shields.io/github/actions/workflow/status/SEU_USUARIO/SEU_REPOSITORIO/main.yml?branch=main&style=for-the-badge" alt="Status do Build"> <img src="https://img.shields.io/github/license/SEU_USUARIO/SEU_REPOSITORIO?style=for-the-badge&color=blue" alt="Licença"> <img src="https://img.shields.io/badge/Python-3.10%2B-blue?style=for-the-badge&logo=python" alt="Python 3.10+"> <img src="https://img.shields.io/badge/FastAPI-0.119.1-05998b?style=for-the-badge&logo=fastapi" alt="FastAPI"> <img src="https://img.shields.io/badge/OIDC%20Claims-Standard-blue?style=for-the-badge" alt="OIDC Claims"> </div>
+
+
+
 
 💡 Conceito Central: Autenticação vs. Autorização
 Esta API foi projetada com uma filosofia fundamental: a rigorosa separação entre Autenticação (provar quem você é) e Autorização (definir o que você pode fazer).
@@ -81,15 +96,15 @@ Crie e ative um ambiente virtual:
 Bash
 
 python -m venv venv
-source venv/bin/activate   # (Linux/macOS)
-.\venv\Scripts\activate    # (Windows)
+source venv/bin/activate # (Linux/macOS)
+.\venv\Scripts\activate # (Windows)
 Instale as dependências:
 
 Bash
 
 pip install -r requirements.txt
 # Instale o driver async do seu banco, se ainda não estiver listado:
-# pip install asyncpg  # Para PostgreSQL
+# pip install asyncpg # Para PostgreSQL
 # pip install aiosqlite # Para SQLite
 # pip install aiomysql # Para MySQL
 2. Configuração
@@ -148,6 +163,39 @@ Bash
 uvicorn main:app --host 0.0.0.0 --port 8001 --reload
 A API estará disponível em http://localhost:8001 🚀. A documentação interativa (Swagger UI) estará em http://localhost:8001/docs.
 
+### 🐳 Rodando com Docker (Recomendado)
+Para uma experiência mais isolada e consistente, você pode usar o Docker.
+
+**Pré-requisitos:**
+- Docker e Docker Compose instalados.
+
+**Passos:**
+
+1.  **Configure o `.env`:**
+    Copie ou renomeie `.env.example` para `.env` e preencha as variáveis como descrito na seção "Configuração" acima. A única diferença é que o `DATABASE_URL` deve apontar para o serviço do banco de dados do Docker:
+    ```
+    DATABASE_URL="postgresql+asyncpg://user:password@db:5432/auth_db"
+    ```
+
+2.  **Build e Run:**
+    Suba os serviços (API e banco de dados) em background:
+    ```bash
+    docker-compose up --build -d
+    ```
+
+3.  **Aplicar Migrações:**
+    Execute as migrações do Alembic dentro do container da aplicação:
+    ```bash
+    docker-compose exec app alembic upgrade head
+    ```
+
+A API estará disponível em `http://localhost:8001` e o banco de dados em `localhost:5432`.
+
+**Para parar os serviços:**
+```bash
+docker-compose down
+```
+
 🌐 Compatibilidade Universal: Como Funciona?
 Esta API foi desenhada para ser compatível com qualquer sistema ou linguagem de programação moderna. Isso é possível graças a três pilares:
 
@@ -188,13 +236,13 @@ POST /api/v1/users/
 Bash
 
 curl -X 'POST' \
-  'http://localhost:8001/api/v1/users/' \
-  -H 'accept: application/json' \
-  -H 'Content-Type: application/json' \
-  -d '{
-  "email": "novo_usuario@meusistema.com",
-  "password": "Password123!",
-  "full_name": "Nome Completo"
+'http://localhost:8001/api/v1/users/' \
+-H 'accept: application/json' \
+-H 'Content-Type: application/json' \
+-d '{
+"email": "novo_usuario@meusistema.com",
+"password": "Password123!",
+"full_name": "Nome Completo"
 }'
 Resultado: O usuário é criado na API Auth com is_active: false. Um email de verificação é enviado.
 
@@ -213,14 +261,14 @@ PATCH /api/v1/mgmt/users/{id_ou_email}/claims
 Bash
 
 curl -X 'PATCH' \
-  'http://localhost:8001/api/v1/mgmt/users/novo_usuario@meusistema.com/claims' \
-  -H 'accept: application/json' \
-  -H 'X-API-Key: sk_live_UMA_CHAVE_SECRETA_MUITO_FORTE...' \
-  -H 'Content-Type: application/json' \
-  -d '{
-  "roles": ["user", "beta_tester"],
-  "permissions": ["read:products", "write:cart"],
-  "ecommerce_user_id": 4567
+'http://localhost:8001/api/v1/mgmt/users/novo_usuario@meusistema.com/claims' \
+-H 'accept: application/json' \
+-H 'X-API-Key: sk_live_UMA_CHAVE_SECRETA_MUITO_FORTE...' \
+-H 'Content-Type: application/json' \
+-d '{
+"roles": ["user", "beta_tester"],
+"permissions": ["read:products", "write:cart"],
+"ecommerce_user_id": 4567
 }'
 Resultado: A API Auth armazena este JSON no campo custom_claims do usuário.
 
@@ -233,10 +281,10 @@ Bash
 
 # Frontend envia como application/x-www-form-urlencoded
 curl -X 'POST' \
-  'http://localhost:8001/api/v1/auth/token' \
-  -H 'accept: application/json' \
-  -H 'Content-Type: application/x-www-form-urlencoded' \
-  -d 'username=novo_usuario@meusistema.com&password=Password123!&scope=roles+permissions+ecommerce_user_id'
+'http://localhost:8001/api/v1/auth/token' \
+-H 'accept: application/json' \
+-H 'Content-Type: application/x-www-form-urlencoded' \
+-d 'username=novo_usuario@meusistema.com&password=Password123!&scope=roles+permissions+ecommerce_user_id'
 Parâmetro scope: Pedimos roles, permissions e ecommerce_user_id. A API Auth irá buscar esses campos no custom_claims e injetá-los no JWT, junto com os claims OIDC padrão.
 
 Passo 5: 🛡️ Usar o JWT (Frontend -> Backend Cliente)
@@ -245,20 +293,20 @@ O frontend recebe o access_token da API Auth. O payload desse token (decodificad
 JSON
 
 {
-  "iss": "http://localhost:8001",
-  "aud": "vrsales-api",
-  "sub": "123", // ID do usuário na API Auth
-  "exp": 1678886400,
-  "iat": 1678882800,
-  "email": "novo_usuario@meusistema.com",
-  "email_verified": true,
-  "name": "Nome Completo",
-  "token_type": "access",
-  "roles": ["user", "beta_tester"], // Veio do custom_claims via scope
-  "permissions": ["read:products", "write:cart"], // Veio do custom_claims via scope
-  "ecommerce_user_id": 4567 // Veio do custom_claims via scope
+"iss": "http://localhost:8001",
+"aud": "vrsales-api",
+"sub": "123", // ID do usuário na API Auth
+"exp": 1678886400,
+"iat": 1678882800,
+"email": "novo_usuario@meusistema.com",
+"email_verified": true,
+"name": "Nome Completo",
+"token_type": "access",
+"roles": ["user", "beta_tester"], // Veio do custom_claims via scope
+"permissions": ["read:products", "write:cart"], // Veio do custom_claims via scope
+"ecommerce_user_id": 4567 // Veio do custom_claims via scope
 }
-Agora, quando o frontend faz uma chamada para o backend do seu E-commerce (ex: GET /api/products), ele envia este access_token no header Authorization: Bearer <token>.
+Agora, quando o frontend faz uma chamada para o backend do seu E-commerce (ex: GET /api/products), ele envia este access_token no header Authorization: Bearer
 
 O backend do seu E-commerce só precisa:
 
