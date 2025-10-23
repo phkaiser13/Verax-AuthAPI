@@ -14,7 +14,14 @@ def get_async_engine() -> AsyncEngine:
     global _async_engine
     if _async_engine is None:
         try:
-            db_url = settings.DATABASE_URL.replace("postgresql+psycopg2", "postgresql+asyncpg")
+            # --- MODIFICAÇÃO: Usar a DATABASE_URL diretamente ---
+            # O usuário agora é responsável por fornecer o driver async correto no .env
+            # Ex: "postgresql+asyncpg://...", "sqlite+aiosqlite:///...", "mysql+aiomysql://..."
+            db_url = settings.DATABASE_URL
+            if not db_url:
+                 raise AttributeError("DATABASE_URL não definida no .env")
+            # --- FIM MODIFICAÇÃO ---
+            
             _async_engine = create_async_engine(
                 db_url,
                 pool_pre_ping=True,

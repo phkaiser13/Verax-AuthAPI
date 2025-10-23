@@ -1,9 +1,10 @@
 # auth_api/app/models/user.py
-from sqlalchemy import String, DateTime, func, Boolean, Integer # noqa
+from sqlalchemy import String, DateTime, func, Boolean, Integer, JSON # Importar JSON genérico
 from sqlalchemy.orm import Mapped, mapped_column
 from datetime import datetime
 from typing import Optional
-from sqlalchemy.dialects.postgresql import JSONB # Importar JSONB
+# Remover importação específica do postgres
+# from sqlalchemy.dialects.postgresql import JSONB 
 
 from app.db.base import Base
 
@@ -28,8 +29,8 @@ class User(Base):
     locked_until: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True) # Armazena em UTC naive
     # --- Fim Campos Lockout ---
 
-    # --- CORREÇÃO: RENOMEADO DE 'metadata' para 'custom_claims' ---
-    custom_claims: Mapped[Optional[dict]] = mapped_column(JSONB, nullable=True)
+    # --- CORREÇÃO: Mudar de JSONB para JSON genérico ---
+    custom_claims: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
     # --- FIM CORREÇÃO ---
     
     created_at: Mapped[datetime] = mapped_column(DateTime, default=func.now())

@@ -6,9 +6,11 @@ __pycache__/
 *.db
 *.sqlite3
 venv/
-
+env/
 logs/
-
+env
+.env
+./env
 # IDEs
 .idea/
 .vscode/
