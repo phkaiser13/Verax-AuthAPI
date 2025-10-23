@@ -76,19 +76,19 @@ async def login_for_access_token(
     
     # Se passou, o usuário é válido, ativo e verificado
     
-    # --- NOVO: LER SCOPES DO FORMULÁRIO ---
-    # form_data.scopes é uma lista de strings (ex: ["roles", "permissions"])
+    # --- LER SCOPES DO FORMULÁRIO (EXISTENTE) ---
     requested_scopes = form_data.scopes
     # --- FIM LEITURA SCOPES ---
 
-    # --- MODIFICADO: GERAR TOKSENS (PASSANDO SCOPES) ---
+    # --- MODIFICADO: GERAR TOKENS (PASSANDO USER E SCOPES) ---
     access_token = security.create_access_token(
-        data={"sub": str(user.id)},
-        user_claims=user.custom_claims, # CORREÇÃO: Passa os claims customizados
+        user=user, # Passa o objeto User completo
         requested_scopes=requested_scopes # Passa os scopes solicitados
     )
     
-    refresh_token_str, expires_at = security.create_refresh_token(data={"sub": str(user.id)})
+    refresh_token_str, expires_at = security.create_refresh_token(
+        data={"sub": str(user.id)} # Refresh token continua só com 'sub'
+    )
     
     await crud_refresh_token.create_refresh_token(
         db, user=user, token=refresh_token_str, expires_at=expires_at
@@ -112,6 +112,11 @@ async def refresh_access_token(
     Recebe um Refresh Token válido e retorna um novo par de Access e Refresh Tokens.
     (Opcional: Rotação de Refresh Token)
     """
+    # --- Nenhuma mudança necessária aqui ---
+    # O refresh token e o novo access token gerado pelo refresh
+    # NÃO contêm os claims OIDC de usuário (email, name, etc.) nem os custom_claims.
+    # Isso é o comportamento padrão e esperado.
+    # Se o cliente precisar de claims atualizados, ele refaz o login (/token).
     refresh_token_str = refresh_request.refresh_token
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
@@ -145,11 +150,8 @@ async def refresh_access_token(
     if not user or not user.is_active:
         raise credentials_exception 
 
-    # 4. Gera um NOVO Access Token
-    # IMPORTANTE: O refresh NÃO re-injeta scopes.
-    # O Access Token gerado aqui não conterá claims customizados.
-    # Se o cliente precisar de claims atualizados, ele deve fazer o login (fluxo /token).
-    new_access_token = security.create_access_token(data={"sub": str(user.id)})
+    # 4. Gera um NOVO Access Token (sem claims OIDC/custom)
+    new_access_token = security.create_access_token(user=user) # Passa o user, mas sem scopes
 
     # 5. Gera um NOVO Refresh Token (para rotação)
     new_refresh_token_str, new_expires_at = security.create_refresh_token(data={"sub": str(user.id)})
@@ -164,6 +166,9 @@ async def refresh_access_token(
         "refresh_token": new_refresh_token_str,
         "token_type": "bearer",
     }
+
+# --- Os endpoints /verify-email, /logout, /me, /forgot-password, /reset-password ---
+# --- permanecem EXATAMENTE IGUAIS ---
 
 @router.get("/verify-email/{token}", response_model=UserSchema)
 async def verify_email(

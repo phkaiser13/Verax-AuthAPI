@@ -5,6 +5,7 @@ from passlib.context import CryptContext
 from jose import jwt, JWTError
 from .config import settings # Keep importing settings
 import secrets
+from app.models.user import User as UserModel # Importar o modelo User
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
@@ -24,60 +25,81 @@ def get_password_hash(password: str) -> str:
 
 # --- Funções para Access Token ---
 def create_access_token(
-    data: Dict[str, Any],
-    user_claims: Optional[Dict[str, Any]] = None, # CORREÇÃO: Renomeado
+    user: UserModel, # Recebe o objeto User completo
     requested_scopes: Optional[list[str]] = None
 ) -> str:
-    to_encode = data.copy()
     
-    # --- LÓGICA DE INJEÇÃO DE SCOPE (CLAIMS) ---
-    if user_claims and requested_scopes: # CORREÇÃO: Renomeado
-        for scope in requested_scopes:
-            # Se o scope (ex: "roles") existe nos claims do usuário...
-            if scope in user_claims: # CORREÇÃO: Renomeado
-                # ...adiciona ao payload do token (ex: "roles": ["admin"])
-                to_encode[scope] = user_claims.get(scope) # CORREÇÃO: Renomeado
-    # --- FIM LÓGICA DE INJEÇÃO ---
+    now = datetime.now(timezone.utc)
+    expire = now + timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
+    
+    # --- INÍCIO: Construir Payload com Claims OIDC Padrão ---
+    to_encode: Dict[str, Any] = {
+        "iss": settings.JWT_ISSUER,            # Issuer (Quem emitiu)
+        "aud": settings.JWT_AUDIENCE,          # Audience (Para quem)
+        "iat": now,                            # Issued At (Quando foi emitido)
+        "nbf": now,                            # Not Before (Não válido antes de)
+        "exp": expire,                         # Expiration Time (Expiração)
+        "sub": str(user.id),                   # Subject (ID do usuário)
+        "token_type": "access",                # Tipo do token (nosso claim customizado)
+        "email": user.email,                   # Claim OIDC: email
+        "email_verified": user.is_verified,    # Claim OIDC: email_verified
+        # Adicionar 'name' se full_name existir
+        **({"name": user.full_name} if user.full_name else {}) 
+    }
+    # --- FIM: Claims OIDC Padrão ---
 
-    # Access settings inside the function
-    expire = datetime.now(timezone.utc) + timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
-    to_encode.update({"exp": expire, "token_type": "access"})
-    # Access settings inside the function
-    encoded_jwt = jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
+    # --- INÍCIO: Injeção de Claims Customizados (scopes) ---
+    if user.custom_claims and requested_scopes:
+        for scope in requested_scopes:
+            if scope in user.custom_claims:
+                # Evita sobrescrever claims OIDC padrão se houver conflito
+                if scope not in to_encode: 
+                    to_encode[scope] = user.custom_claims.get(scope)
+    # --- FIM: Injeção de Claims Customizados ---
+
+    encoded_jwt = jwt.encode(
+        to_encode, 
+        settings.SECRET_KEY, 
+        algorithm=settings.ALGORITHM
+    )
     return encoded_jwt
 
 def decode_access_token(token: str) -> Dict | None:
     try:
-        # Access settings inside the function
+        # --- MODIFICADO: Adicionar validação de Audience ---
         payload = jwt.decode(
             token,
             settings.SECRET_KEY,
             algorithms=[settings.ALGORITHM],
-            options={"verify_aud": False}
+            audience=settings.JWT_AUDIENCE, # Valida o 'aud' claim
+            options={"verify_iss": True, "verify_aud": True} # Força validação de iss e aud
         )
+        # --- FIM MODIFICAÇÃO ---
         return payload
     except JWTError:
         return None
 
 # --- Funções para Refresh Token ---
 def create_refresh_token(data: Dict[str, Any]) -> tuple[str, datetime]:
+    # Refresh tokens geralmente NÃO contêm claims OIDC, apenas o necessário
     to_encode = data.copy()
-    # Access settings inside the function
     expires_delta = timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS)
     expire = datetime.now(timezone.utc) + expires_delta
-    to_encode.update({"exp": expire, "token_type": "refresh"})
-    # Access settings inside the function
+    to_encode.update({
+        "iss": settings.JWT_ISSUER, # É bom incluir o issuer
+        "exp": expire, 
+        "token_type": "refresh"
+    }) 
     encoded_jwt = jwt.encode(to_encode, settings.REFRESH_SECRET_KEY, algorithm=settings.ALGORITHM)
     return encoded_jwt, expire.replace(tzinfo=None)
 
 def decode_refresh_token(token: str) -> Dict | None:
     try:
-        # Access settings inside the function
         payload = jwt.decode(
             token,
             settings.REFRESH_SECRET_KEY,
             algorithms=[settings.ALGORITHM],
-            options={"verify_aud": False}
+            options={"verify_iss": True, "verify_aud": False} # Verifica issuer, ignora audience
         )
         if payload.get("token_type") != "refresh":
              return None
@@ -87,29 +109,29 @@ def decode_refresh_token(token: str) -> Dict | None:
 
 # --- Funções para Reset Token ---
 def create_password_reset_token(email: str) -> tuple[str, datetime]:
-    # Access settings inside the function
+    # Reset tokens também não precisam de claims OIDC
     reset_secret = settings.RESET_PASSWORD_SECRET_KEY or settings.SECRET_KEY
     expires_delta = timedelta(minutes=settings.RESET_PASSWORD_TOKEN_EXPIRE_MINUTES)
     expire = datetime.now(timezone.utc) + expires_delta
     to_encode = {
+        "iss": settings.JWT_ISSUER, # É bom incluir o issuer
+        "aud": settings.JWT_AUDIENCE, # Pode ser útil
         "exp": expire,
         "nbf": datetime.now(timezone.utc),
         "sub": email,
         "token_type": "password_reset"
     }
-    # Access settings inside the function
     encoded_jwt = jwt.encode(to_encode, reset_secret, algorithm=settings.ALGORITHM)
     return encoded_jwt, expire.replace(tzinfo=None)
 
 def decode_password_reset_token(token: str) -> Dict | None:
     try:
-        # Access settings inside the function
         reset_secret = settings.RESET_PASSWORD_SECRET_KEY or settings.SECRET_KEY
         payload = jwt.decode(
             token,
             reset_secret,
             algorithms=[settings.ALGORITHM],
-            options={"verify_aud": False}
+            options={"verify_iss": True, "verify_aud": True} # Verifica issuer e audience
         )
         if payload.get("token_type") != "password_reset" or "sub" not in payload:
              return None

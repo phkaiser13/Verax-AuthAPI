@@ -23,16 +23,11 @@ class Settings(BaseSettings):
     # --- Configurações de Email (SendGrid) ---
     SENDGRID_API_KEY: str
     EMAIL_FROM: EmailStr
-    EMAIL_FROM_NAME: str | None = "Auth API"
+    EMAIL_FROM_NAME: str | None = "Verax AuthAPI"
     # --- Fim SendGrid ---
     
     # --- Configurações SMTP (Removidas) ---
-    # EMAIL_HOST: str = "localhost"
-    # EMAIL_PORT: int = 2525
-    # EMAIL_USERNAME: str | None = None
-    # EMAIL_PASSWORD: str | None = None
-    # EMAIL_USE_TLS: bool = True
-    # EMAIL_USE_SSL: bool = False
+    # ... (removidas) ...
     # --- Fim SMTP ---
     
     # Email Links
@@ -50,6 +45,11 @@ class Settings(BaseSettings):
 
     # Chave de API Interna
     INTERNAL_API_KEY: str
+
+    # --- NOVAS Configurações OIDC JWT Claims ---
+    JWT_ISSUER: str = "urn:verax:authapi" # Default se não estiver no .env
+    JWT_AUDIENCE: str = "urn:verax:client" # Default se não estiver no .env
+    # --- FIM NOVAS ---
 
     class Config:
         case_sensitive = True
